@@ -14,13 +14,7 @@ Any changes you make to your deployed app will be automatically pushed to this r
 
 Your project is live at:
 
-**[https://vercel.com/vercelapps-5859s-projects/v0-bio-link-upgrade](https://vercel.com/vercelapps-5859s-projects/v0-bio-link-upgrade)**
-
-## Build your app
-
-Continue building your app on:
-
-**[https://v0.app/chat/projects/WbXOeLod3Rq](https://v0.app/chat/projects/WbXOeLod3Rq)**
+**[rflctnstd.com](rflctnstd.com)**
 
 ## How It Works
 
