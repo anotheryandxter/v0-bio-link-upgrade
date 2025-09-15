@@ -1,17 +1,6 @@
-import type { Metadata } from "next"
-import { generateGlobalMetadata } from "@/lib/metadata"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-
-export async function generateMetadata(): Promise<Metadata> {
-  const baseMetadata = await generateGlobalMetadata()
-  return {
-    ...baseMetadata,
-    title: `Authentication Error - ${baseMetadata.title}`,
-    description: `Authentication error for ${baseMetadata.title}`,
-  }
-}
 
 export default function AuthCodeErrorPage() {
   return (
