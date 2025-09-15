@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ImageUpload } from "@/components/ui/image-upload"
+import { BackgroundCustomizer } from "@/components/dashboard/background-customizer"
 import { useRouter } from "next/navigation"
 import type { Profile } from "@/types"
 
@@ -23,6 +24,27 @@ export function ProfileForm({ profile }: ProfileFormProps) {
     avatar: profile.avatar,
     favicon: profile.favicon,
     footer_text: profile.footer_text || `© ${new Date().getFullYear()} ${profile.business_name}`,
+    homepage_background: profile.homepage_background || {
+      type: "video" as const,
+      video: {
+        webm: "web.webm",
+        mp4: "web.mp4",
+        ogv: "web.ogv",
+        poster: "img/videoframe.jpg",
+        fit: "cover" as const,
+        position: "center" as const,
+        opacity: 1,
+        blur: 0,
+        muted: true,
+        loop: true,
+        autoplay: true,
+      },
+      overlay: {
+        enabled: true,
+        color: "#000000",
+        opacity: 0.3,
+      },
+    },
   })
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState("")
@@ -116,6 +138,11 @@ export function ProfileForm({ profile }: ProfileFormProps) {
         />
         <p className="text-sm text-muted-foreground mt-1">Leave empty to use default copyright text</p>
       </div>
+
+      <BackgroundCustomizer
+        value={formData.homepage_background}
+        onChange={(homepage_background) => setFormData({ ...formData, homepage_background })}
+      />
 
       {message && (
         <div
