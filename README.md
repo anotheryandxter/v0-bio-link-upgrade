@@ -12,13 +12,19 @@ Any changes you make to your deployed app will be automatically pushed to this r
 
 ## Deployment
 
-This project is live at:
+Your project is live at:
 
-**[rflctnstd.com](rflctnstd.com)**
+**[https://vercel.com/vercelapps-5859s-projects/v0-bio-link-upgrade](https://vercel.com/vercelapps-5859s-projects/v0-bio-link-upgrade)**
+
+## Build your app
+
+Continue building your app on:
+
+**[https://v0.app/chat/projects/WbXOeLod3Rq](https://v0.app/chat/projects/WbXOeLod3Rq)**
 
 ## How It Works
 
-1. Create and modify this project using [v0.app](https://v0.app)
+1. Create and modify your project using [v0.app](https://v0.app)
 2. Deploy your chats from the v0 interface
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
