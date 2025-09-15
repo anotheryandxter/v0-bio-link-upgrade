@@ -34,7 +34,7 @@ export function BioPage({ profile, links }: BioPageProps) {
           {/* Footer */}
           <div className="mt-8 text-center">
             <p className="text-white/60 text-xs">
-              © {new Date().getFullYear()} {profile.business_name}
+              {profile.footer_text || `© ${new Date().getFullYear()} ${profile.business_name}`}
             </p>
           </div>
         </div>

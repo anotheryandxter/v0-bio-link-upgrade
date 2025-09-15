@@ -22,6 +22,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
     page_title: profile.page_title,
     avatar: profile.avatar,
     favicon: profile.favicon,
+    footer_text: profile.footer_text || `© ${new Date().getFullYear()} ${profile.business_name}`,
   })
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState("")
@@ -103,6 +104,17 @@ export function ProfileForm({ profile }: ProfileFormProps) {
           onChange={(e) => setFormData({ ...formData, page_title: e.target.value })}
           required
         />
+      </div>
+
+      <div>
+        <Label htmlFor="footer_text">Footer Text</Label>
+        <Input
+          id="footer_text"
+          value={formData.footer_text}
+          onChange={(e) => setFormData({ ...formData, footer_text: e.target.value })}
+          placeholder={`© ${new Date().getFullYear()} ${formData.business_name}`}
+        />
+        <p className="text-sm text-muted-foreground mt-1">Leave empty to use default copyright text</p>
       </div>
 
       {message && (

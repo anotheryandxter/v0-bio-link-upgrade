@@ -1,6 +1,40 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { BioPage } from "@/components/bio/bio-page"
 import { redirect } from "next/navigation"
+import type { Metadata } from "next"
+
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const supabase = await createServerSupabaseClient()
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("page_title, business_name, favicon")
+      .eq("is_setup", true)
+      .single()
+
+    if (profile) {
+      return {
+        title: profile.page_title || profile.business_name,
+        description: `${profile.business_name} - Bio Link`,
+        icons: profile.favicon
+          ? {
+              icon: profile.favicon,
+              shortcut: profile.favicon,
+              apple: profile.favicon,
+            }
+          : undefined,
+      }
+    }
+  } catch (error) {
+    console.log("[v0] Error generating metadata:", error)
+  }
+
+  return {
+    title: "Bio Link",
+    description: "Personal Bio Link Page",
+  }
+}
 
 export default async function HomePage() {
   try {

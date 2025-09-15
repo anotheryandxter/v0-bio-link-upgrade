@@ -6,6 +6,7 @@ export interface Profile {
   location: string
   favicon: string | null
   page_title: string
+  footer_text: string | null
   background_video: {
     webm: string | null
     mp4: string | null
