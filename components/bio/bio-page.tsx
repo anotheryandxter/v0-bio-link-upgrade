@@ -1,5 +1,5 @@
 import type { Profile, Link } from "@/types"
-import { VideoBackground } from "./video-background"
+import { BackgroundRenderer } from "./background-renderer"
 import { ProfileSection } from "./profile-section"
 import { LinksSection } from "./links-section"
 
@@ -9,11 +9,30 @@ interface BioPageProps {
 }
 
 export function BioPage({ profile, links }: BioPageProps) {
-  return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Background Video */}
-      <VideoBackground video={profile.background_video} />
+  const backgroundConfig = profile.homepage_background || {
+    type: "video" as const,
+    video: {
+      webm: profile.background_video?.webm || null,
+      mp4: profile.background_video?.mp4 || null,
+      ogv: profile.background_video?.ogv || null,
+      poster: profile.background_video?.poster || null,
+      fit: "cover" as const,
+      position: "center" as const,
+      opacity: 1,
+      blur: 0,
+      muted: true,
+      loop: true,
+      autoplay: true,
+    },
+    overlay: {
+      enabled: true,
+      color: "#000000",
+      opacity: 0.3,
+    },
+  }
 
+  return (
+    <BackgroundRenderer config={backgroundConfig}>
       {/* Admin Button - floating in top right */}
       <div className="fixed top-4 right-4 z-20">
         <a
@@ -26,7 +45,7 @@ export function BioPage({ profile, links }: BioPageProps) {
       </div>
 
       {/* Bio Content */}
-      <div className="relative z-10 container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto">
           <ProfileSection profile={profile} />
           <LinksSection links={links} />
@@ -39,6 +58,6 @@ export function BioPage({ profile, links }: BioPageProps) {
           </div>
         </div>
       </div>
-    </div>
+    </BackgroundRenderer>
   )
 }
