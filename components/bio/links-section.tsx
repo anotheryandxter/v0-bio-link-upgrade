@@ -35,7 +35,7 @@ export function LinksSection({ links }: LinksSectionProps) {
       {/* Social Links */}
       {socialLinks.length > 0 && (
         <div>
-          <h3 className="text-white/80 text-sm font-medium mb-3 text-center">Connect</h3>
+          <h3 className="text-white/80 text-sm font-medium mb-3 text-center">Social Media</h3>
           {socialLinks.map((link) => (
             <LinkButton key={link.id} link={link} />
           ))}
