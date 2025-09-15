@@ -38,6 +38,18 @@ export function LinkButton({ link }: LinkButtonProps) {
     }
   }
 
+  const renderIcon = () => {
+    if (!link.icon) return null
+
+    // Check if it's a custom image (data URL or HTTP URL)
+    if (link.icon.startsWith("data:") || link.icon.startsWith("http")) {
+      return <img src={link.icon || "/placeholder.svg"} alt="" className="w-5 h-5 object-contain" />
+    }
+
+    // FontAwesome icon
+    return <i className={`${link.icon} text-xl`} />
+  }
+
   return (
     <button
       onClick={handleClick}
@@ -59,7 +71,7 @@ export function LinkButton({ link }: LinkButtonProps) {
         backgroundPosition: link.background_image ? "center" : undefined,
       }}
     >
-      <i className={`${link.icon} text-xl`} />
+      {renderIcon()}
       <span className="text-balance">{link.title}</span>
     </button>
   )

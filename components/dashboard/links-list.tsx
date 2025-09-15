@@ -13,6 +13,18 @@ interface LinksListProps {
 }
 
 export function LinksList({ links, onEdit, onDelete, onToggleActive, isLoading }: LinksListProps) {
+  const renderIcon = (icon: string) => {
+    if (!icon) return <i className="fas fa-link text-lg" />
+
+    // Check if it's a custom image (data URL or HTTP URL)
+    if (icon.startsWith("data:") || icon.startsWith("http")) {
+      return <img src={icon || "/placeholder.svg"} alt="" className="w-5 h-5 object-contain" />
+    }
+
+    // FontAwesome icon
+    return <i className={`${icon} text-lg`} />
+  }
+
   if (links.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -32,7 +44,7 @@ export function LinksList({ links, onEdit, onDelete, onToggleActive, isLoading }
           {/* Link Preview */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-2">
-              <i className={`${link.icon} text-lg`} style={{ color: link.text_color_light }} />
+              <div style={{ color: link.text_color_light }}>{renderIcon(link.icon)}</div>
               <h4 className="font-medium truncate">{link.title}</h4>
               <Badge variant={link.is_active ? "default" : "secondary"}>{link.is_active ? "Active" : "Inactive"}</Badge>
               <Badge variant="outline">{link.category}</Badge>
