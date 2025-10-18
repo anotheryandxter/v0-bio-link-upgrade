@@ -1,7 +1,12 @@
 // Node.js runtime uploads handler (Next.js pages API)
 const formidable = require('formidable')
 const fs = require('fs')
-const sharp = require('sharp')
+let sharp = null
+try {
+  sharp = require('sharp')
+} catch (e) {
+  console.warn('sharp not available; upload handler will skip image transforms')
+}
 const { createClient } = require('@supabase/supabase-js')
 
 module.exports = async (req, res) => {
@@ -22,29 +27,40 @@ module.exports = async (req, res) => {
       const inputPath = file.path || file.filepath || file.file
       const buffer = fs.readFileSync(inputPath)
 
-      // generate variants
-      const sizes = [320, 640, 1200]
       const bucket = (fields.bucket && String(fields.bucket)) || 'public'
       const baseName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '')}`
-      const uploaded = []
 
-      for (const w of sizes) {
-        const out = await sharp(buffer).resize({ width: w }).webp({ quality: 80 }).toBuffer()
-        const pathName = `${baseName}-${w}.webp`
-        const { error: upErr } = await supabase.storage.from(bucket).upload(pathName, out, { cacheControl: 'public, max-age=31536000' })
+      if (sharp) {
+        // generate variants
+        const sizes = [320, 640, 1200]
+        const uploaded = []
+
+        for (const w of sizes) {
+          const out = await sharp(buffer).resize({ width: w }).webp({ quality: 80 }).toBuffer()
+          const pathName = `${baseName}-${w}.webp`
+          const { error: upErr } = await supabase.storage.from(bucket).upload(pathName, out, { cacheControl: 'public, max-age=31536000' })
+          if (upErr) return res.status(500).json({ error: upErr.message })
+          const { data: pub } = supabase.storage.from(bucket).getPublicUrl(pathName)
+          uploaded.push({ width: w, url: pub.publicUrl })
+        }
+
+        // Also upload an original-optimized JPEG (max 1200)
+        const jpegBuf = await sharp(buffer).resize({ width: 1200 }).jpeg({ quality: 85 }).toBuffer()
+        const jpegPath = `${baseName}-1200.jpg`
+        const { error: jpegErr } = await supabase.storage.from(bucket).upload(jpegPath, jpegBuf, { cacheControl: 'public, max-age=31536000' })
+        if (jpegErr) return res.status(500).json({ error: jpegErr.message })
+        const { data: jpegPub } = supabase.storage.from(bucket).getPublicUrl(jpegPath)
+
+        res.json({ uploaded, jpeg: jpegPub.publicUrl })
+      } else {
+        // fallback: upload original file buffer and return URL
+        const ext = (file.mimetype && file.mimetype.split('/')[1]) || 'bin'
+        const origPath = `${baseName}-original.${ext}`
+        const { error: upErr } = await supabase.storage.from(bucket).upload(origPath, buffer, { cacheControl: 'public, max-age=31536000' })
         if (upErr) return res.status(500).json({ error: upErr.message })
-        const { data: pub } = supabase.storage.from(bucket).getPublicUrl(pathName)
-        uploaded.push({ width: w, url: pub.publicUrl })
+        const { data: pub } = supabase.storage.from(bucket).getPublicUrl(origPath)
+        res.json({ uploaded: [], jpeg: pub.publicUrl, note: 'sharp not available: original stored only' })
       }
-
-      // Also upload an original-optimized JPEG (max 1200)
-      const jpegBuf = await sharp(buffer).resize({ width: 1200 }).jpeg({ quality: 85 }).toBuffer()
-      const jpegPath = `${baseName}-1200.jpg`
-      const { error: jpegErr } = await supabase.storage.from(bucket).upload(jpegPath, jpegBuf, { cacheControl: 'public, max-age=31536000' })
-      if (jpegErr) return res.status(500).json({ error: jpegErr.message })
-      const { data: jpegPub } = supabase.storage.from(bucket).getPublicUrl(jpegPath)
-
-      res.json({ uploaded, jpeg: jpegPub.publicUrl })
     } catch (e) {
       console.error(e)
       res.status(500).json({ error: e.message })
