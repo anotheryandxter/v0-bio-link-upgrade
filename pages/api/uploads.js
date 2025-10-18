@@ -10,6 +10,13 @@ try {
 const { createClient } = require('@supabase/supabase-js')
 
 module.exports = async (req, res) => {
+  // Allow CORS preflight and log method/content-type for debugging
+  console.log('uploads handler invoked', { method: req.method, headers: req.headers && { 'content-type': req.headers['content-type'] || req.headers['Content-Type'] } })
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+    return res.status(204).end()
+  }
   if (req.method !== 'POST') return res.status(405).end('Method Not Allowed')
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

@@ -22,5 +22,24 @@ export function createClient() {
     } as any
   }
 
-  return createBrowserClient(supabaseUrl, supabaseAnonKey)
+  try {
+    // Basic validation of the provided URL to avoid throwing inside the supabase client.
+    new URL(supabaseUrl)
+    return createBrowserClient(supabaseUrl, supabaseAnonKey)
+  } catch (e) {
+    console.error('[v0] Invalid NEXT_PUBLIC_SUPABASE_URL, returning mock client:', e)
+    return {
+      from: () => ({
+        select: () => ({ data: null, error: new Error('Supabase not configured') }),
+        insert: () => ({ data: null, error: new Error('Supabase not configured') }),
+        update: () => ({ data: null, error: new Error('Supabase not configured') }),
+        delete: () => ({ data: null, error: new Error('Supabase not configured') }),
+      }),
+      auth: {
+        signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        signOut: () => Promise.resolve({ error: null }),
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      },
+    } as any
+  }
 }
