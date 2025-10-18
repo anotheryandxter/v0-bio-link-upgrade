@@ -1,0 +1,45 @@
+"use client"
+
+import React, { useEffect, useState } from 'react'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
+
+export default function MonthlyStatsClient({ profileId }: { profileId: string }) {
+  const [data, setData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+    async function fetchData() {
+      setLoading(true)
+      try {
+        const res = await fetch(`/api/analytics/monthly?profileId=${profileId}`)
+        const json = await res.json()
+        if (mounted) setData((json.data || []).map((r: any) => ({ name: `${r.title} (${new Date(r.month).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })})`, clicks: r.clicks })))
+      } catch (e) {
+        console.error(e)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    fetchData()
+    return () => {
+      mounted = false
+    }
+  }, [profileId])
+
+  if (loading) return <div>Loading chart...</div>
+  if (!data || data.length === 0) return <div>No monthly stats available yet.</div>
+
+  return (
+    <div style={{ width: '100%', height: 300 }}>
+      <ResponsiveContainer>
+        <BarChart data={data}>
+          <XAxis dataKey="name" />
+          <YAxis />
+          <Tooltip />
+          <Bar dataKey="clicks" fill="#8884d8" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}

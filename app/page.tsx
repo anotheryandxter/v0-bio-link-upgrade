@@ -1,17 +1,18 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { timeAsync } from '@/lib/profiler'
 import { BioPage } from "@/components/bio/bio-page"
 import { redirect } from "next/navigation"
 import type { Metadata } from "next"
+
+export const dynamic = "force-dynamic"
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const supabase = await createServerSupabaseClient()
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("page_title, business_name, favicon")
-      .eq("is_setup", true)
-      .single()
+    const { data: profile } = await timeAsync('supabase:profiles_select_metadata', async () =>
+      supabase.from("profiles").select("page_title, business_name, favicon").eq("is_setup", true).single()
+    )
 
     if (profile) {
       return {
@@ -43,11 +44,9 @@ export default async function HomePage() {
     console.log("[v0] Attempting to connect to Supabase...")
 
     // Check if profile is setup
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("is_setup", true)
-      .single()
+    const { data: profile, error: profileError } = await timeAsync('supabase:profiles_check_setup', async () =>
+      supabase.from("profiles").select("*").eq("is_setup", true).single()
+    )
 
     console.log("[v0] Profile query result:", { profile, profileError })
 
@@ -58,12 +57,9 @@ export default async function HomePage() {
     }
 
     // Get active links ordered by order_index
-    const { data: links, error: linksError } = await supabase
-      .from("links")
-      .select("*")
-      .eq("profile_id", profile.id)
-      .eq("is_active", true)
-      .order("order_index")
+    const { data: links, error: linksError } = await timeAsync('supabase:links_active', async () =>
+      supabase.from("links").select("*").eq("profile_id", profile.id).eq("is_active", true).order("order_index")
+    )
 
     console.log("[v0] Links query result:", { links, linksError })
 

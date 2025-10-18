@@ -20,6 +20,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* FontAwesome stylesheet - preload and preconnect for faster FCP */}
+        <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossOrigin="anonymous" />
+        <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -27,9 +30,11 @@ export default function RootLayout({
           crossOrigin="anonymous"
           referrerPolicy="no-referrer"
         />
+        {/* Preconnect to Supabase storage domain for quicker image fetches (replace with your project host if different) */}
+        <link rel="preconnect" href="https://wxotlwlbbepzlslciwis.supabase.co" crossOrigin="anonymous" />
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <Suspense fallback={null}>{children}</Suspense>
+  {(Suspense as any)({ fallback: null, children })}
         <Analytics />
       </body>
     </html>

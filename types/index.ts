@@ -46,6 +46,7 @@ export interface LinkClick {
   user_agent: string | null
   referrer: string | null
   ip_address: string | null
+  user_identifier?: string | null
 }
 
 export interface BackgroundConfig {

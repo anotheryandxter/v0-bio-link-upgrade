@@ -191,15 +191,25 @@ async function setupUserAndData() {
       },
     ]
 
-    const { data: linksData, error: linksError } = await supabase.from("links").upsert(defaultLinks, {
-      onConflict: "profile_id,title",
-    })
+    // Insert or upsert each link individually to avoid ON CONFLICT issues
+    let createdCount = 0
+    for (const link of defaultLinks) {
+      const { data: linkData, error: linkError } = await supabase.from("links").upsert(link, {
+        onConflict: ["profile_id", "title"],
+      })
 
-    if (linksError) {
-      throw new Error(`Failed to create links: ${linksError.message}`)
+      if (linkError) {
+        // If upsert by columns isn't supported, fallback to insert ignore
+        const { error: insertError } = await supabase.from("links").insert(link).select()
+        if (insertError) {
+          throw new Error(`Failed to create link ${link.title}: ${insertError.message}`)
+        }
+      }
+
+      createdCount++
     }
 
-    console.log("[v0] Links created successfully:", linksData?.length || defaultLinks.length)
+    console.log("[v0] Links created successfully:", createdCount)
 
     // Step 4: Verify setup
     console.log("[v0] Verifying setup...")

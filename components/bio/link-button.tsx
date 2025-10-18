@@ -2,6 +2,24 @@
 
 import type { Link } from "@/types"
 import { useState } from "react"
+function getVisitorId() {
+  try {
+    if (typeof document === "undefined") return null
+    const name = "vuid="
+    const cookies = document.cookie.split(";")
+    for (let c of cookies) {
+      c = c.trim()
+      if (c.indexOf(name) === 0) return c.substring(name.length)
+    }
+    const id = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    // set cookie for 365 days
+    const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString()
+    document.cookie = `vuid=${id}; path=/; expires=${expires}; SameSite=Lax`
+    return id
+  } catch (e) {
+    return null
+  }
+}
 
 interface LinkButtonProps {
   link: Link
@@ -12,12 +30,18 @@ export function LinkButton({ link }: LinkButtonProps) {
 
   const trackClick = async (linkId: string) => {
     try {
+      const userIdentifier = getVisitorId()
       await fetch("/api/analytics/track", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ linkId }),
+        body: JSON.stringify({
+          linkId,
+          userIdentifier,
+          userAgent: navigator.userAgent,
+          referrer: document.referrer || null,
+        }),
       })
     } catch (error) {
       console.error("Failed to track click:", error)

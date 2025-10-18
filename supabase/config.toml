@@ -1,0 +1,9 @@
+project_ref = "wxotlwlbbepzlslciwis"
+
+[db]
+# Local DB settings (if using supabase start). Leave blank for remote project.
+host = ""
+port = 5432
+user = ""
+password = ""
+database = ""
