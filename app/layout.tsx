@@ -17,6 +17,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const SuspenseAny = Suspense as any
   return (
     <html lang="en">
       <head>
@@ -34,7 +35,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://wxotlwlbbepzlslciwis.supabase.co" crossOrigin="anonymous" />
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-  {(Suspense as any)({ fallback: null, children })}
+  <SuspenseAny fallback={null}>{children}</SuspenseAny>
         <Analytics />
       </body>
     </html>
