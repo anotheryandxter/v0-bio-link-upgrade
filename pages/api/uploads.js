@@ -8,6 +8,24 @@ try {
   console.warn('sharp not available; upload handler will skip image transforms')
 }
 const { createClient } = require('@supabase/supabase-js')
+// Cloudinary support (preferred server-side processing when configured)
+let cloudinary = null
+const cloudName = process.env.CLOUDINARY_CLOUD_NAME
+const cloudApiKey = process.env.CLOUDINARY_API_KEY
+const cloudApiSecret = process.env.CLOUDINARY_API_SECRET
+if (cloudName && cloudApiKey && cloudApiSecret) {
+  try {
+    cloudinary = require('cloudinary').v2
+    cloudinary.config({
+      cloud_name: cloudName,
+      api_key: cloudApiKey,
+      api_secret: cloudApiSecret,
+    })
+  } catch (err) {
+    console.warn('cloudinary package not available or failed to init', err.message)
+    cloudinary = null
+  }
+}
 
 module.exports = async (req, res) => {
   // Allow CORS preflight and log method/content-type for debugging
@@ -36,6 +54,24 @@ module.exports = async (req, res) => {
 
       const bucket = (fields.bucket && String(fields.bucket)) || 'public'
       const baseName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '')}`
+
+      // If Cloudinary is configured, prefer uploading there and returning transform URLs
+      if (cloudinary) {
+        try {
+          const sizes = [320, 640, 1200]
+          const uploadResult = await cloudinary.uploader.upload(inputPath, { folder: 'v0_uploads' })
+          const publicId = uploadResult.public_id
+          const uploaded = sizes.map((w) => ({
+            width: w,
+            url: cloudinary.url(publicId, { transformation: [{ width: w, crop: 'limit' }], format: 'webp', secure: true }),
+          }))
+          const jpegUrl = cloudinary.url(publicId, { transformation: [{ width: 1200, crop: 'limit' }], format: 'jpg', secure: true })
+          return res.json({ uploaded, jpeg: jpegUrl, cloudinary: uploadResult.secure_url })
+        } catch (e) {
+          console.error('cloudinary upload error', e)
+          // fall through to sharp/supabase fallback
+        }
+      }
 
       if (sharp) {
         // generate variants
@@ -81,3 +117,5 @@ module.exports.config = {
     bodyParser: false,
   },
 }
+
+if (!module.exports.default) module.exports.default = module.exports
