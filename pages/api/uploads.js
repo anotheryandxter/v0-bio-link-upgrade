@@ -36,20 +36,36 @@ module.exports = async (req, res) => {
     return res.status(204).end()
   }
   if (req.method !== 'POST') return res.status(405).end('Method Not Allowed')
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const missing = []
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missing.push('NEXT_PUBLIC_SUPABASE_URL')
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY')
+    return res.status(500).json({ error: 'Supabase env not configured', missing })
+  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseService = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!supabaseUrl || !supabaseService) return res.status(500).json({ error: 'Supabase env not configured' })
-
   const supabase = createClient(supabaseUrl, supabaseService)
+
+  // Parse multipart form (file upload)
   const form = new formidable.IncomingForm()
   form.parse(req, async (err, fields, files) => {
     if (err) return res.status(400).json({ error: err.message })
     const file = files.file
-    if (!file) return res.status(400).json({ error: 'No file' })
+    if (!file) return res.status(400).json({ error: 'No file uploaded. Ensure the multipart field is named "file".' })
+
+    // Attempt to obtain a temporary file path (varies by formidable version/host)
+    const inputPath = file.filepath || file.path || (typeof file.file === 'string' ? file.file : undefined)
+    if (!inputPath) {
+      // Provide a helpful error (avoid crashing with undefined path)
+      return res.status(400).json({
+        error: 'Uploaded file missing temporary path',
+        note: 'This server expects a multipart file field and a temporary file path provided by formidable. If you see this in production, check runtime environment and multipart upload client.',
+        fileMeta: Object.keys(file || {}).slice(0, 20),
+      })
+    }
 
     try {
-      const inputPath = file.path || file.filepath || file.file
       const buffer = fs.readFileSync(inputPath)
 
       const bucket = (fields.bucket && String(fields.bucket)) || 'public'
