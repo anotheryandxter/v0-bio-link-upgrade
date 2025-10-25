@@ -8,26 +8,21 @@ INSERT INTO profiles (
   business_name, 
   avatar, 
   location, 
-  favicon, 
   page_title, 
   background_video,
-  theme_preference,
   is_setup
 ) VALUES (
   '00000000-0000-0000-0000-000000000000', -- Placeholder - update with actual user_id
   'Reflection Photography',
   './assets/avatar.PNG',
   'Indonesia',
-  './assets/favicon.png',
   'Reflection Photography',
   '{"webm":"web.webm","mp4":"web.mp4","ogv":"web.ogv","poster":"img/videoframe.jpg"}',
-  'system',
   true
 ) ON CONFLICT (user_id) DO UPDATE SET
   business_name = EXCLUDED.business_name,
   avatar = EXCLUDED.avatar,
   location = EXCLUDED.location,
-  favicon = EXCLUDED.favicon,
   page_title = EXCLUDED.page_title,
   background_video = EXCLUDED.background_video,
   is_setup = EXCLUDED.is_setup,

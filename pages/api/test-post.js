@@ -14,3 +14,5 @@ module.exports = (req, res) => {
     res.json({ ok: true, method: req.method, headers: req.headers, bodyBase64Prefix: body })
   })
 }
+
+if (!module.exports.default) module.exports.default = module.exports

@@ -36,17 +36,15 @@ async function run() {
     .upsert({
       user_id: userId,
       business_name: 'Reflection Photography',
-      avatar: './assets/avatar.PNG',
-      location: 'Indonesia',
-      favicon: './assets/favicon.png',
-      page_title: 'Reflection Photography',
+  avatar: './assets/avatar.PNG',
+  location: 'Indonesia',
+  page_title: 'Reflection Photography',
       background_video: {
         webm: 'web.webm',
         mp4: 'web.mp4',
         ogv: 'web.ogv',
         poster: 'img/videoframe.jpg',
       },
-      theme_preference: 'system',
       is_setup: true,
     }, { onConflict: ['user_id'] })
     .select()

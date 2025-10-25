@@ -22,7 +22,6 @@ export function ProfileForm({ profile }: ProfileFormProps) {
     location: profile.location,
     page_title: profile.page_title,
     avatar: profile.avatar,
-    favicon: profile.favicon,
     footer_text: profile.footer_text || `© ${new Date().getFullYear()} ${profile.business_name}`,
     homepage_background: profile.homepage_background || {
       type: "video" as const,
@@ -90,13 +89,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
         maxSize={5}
       />
 
-      <ImageUpload
-        label="Favicon (Site Icon)"
-        value={formData.favicon}
-        onChange={(value) => setFormData({ ...formData, favicon: value })}
-        accept="image/*"
-        maxSize={2}
-      />
+      {/* Favicon is now static and cannot be changed from the admin UI. */}
 
       <div>
         <Label htmlFor="business_name">Business Name</Label>

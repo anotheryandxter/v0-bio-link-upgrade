@@ -7,33 +7,18 @@ import type { Metadata } from "next"
 export const dynamic = "force-dynamic"
 
 export async function generateMetadata(): Promise<Metadata> {
-  try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: profile } = await timeAsync('supabase:profiles_select_metadata', async () =>
-      supabase.from("profiles").select("page_title, business_name, favicon").eq("is_setup", true).single()
-    )
-
-    if (profile) {
-      return {
-        title: profile.page_title || profile.business_name,
-        description: `${profile.business_name} - Bio Link`,
-        icons: profile.favicon
-          ? {
-              icon: profile.favicon,
-              shortcut: profile.favicon,
-              apple: profile.favicon,
-            }
-          : undefined,
-      }
-    }
-  } catch (error) {
-    console.log("[v0] Error generating metadata:", error)
-  }
-
+  // Use static favicons for all deployments. This removes dynamic favicon
+  // configuration from admin settings and ensures consistent cross-device
+  // behavior. The generated static files live in /public/ and include multiple
+  // sizes and a multi-resolution favicon.ico.
   return {
-    title: "Bio Link",
-    description: "Personal Bio Link Page",
+    title: "Reflection Photography",
+    description: "Reflection Photography - Bio Link",
+    icons: {
+      icon: '/favicon-32x32.png',
+      shortcut: '/favicon-16x16.png',
+      apple: '/favicon-180x180.png',
+    },
   }
 }
 

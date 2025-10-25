@@ -71,7 +71,6 @@ async function setupUserAndData() {
           business_name: "Reflection Photography",
           avatar: "./assets/avatar.PNG",
           location: "Indonesia",
-          favicon: "./assets/favicon.png",
           page_title: "Reflection Photography",
           background_video: {
             webm: "web.webm",
@@ -79,7 +78,6 @@ async function setupUserAndData() {
             ogv: "web.ogv",
             poster: "img/videoframe.jpg",
           },
-          theme_preference: "system",
           is_setup: true,
         },
         {

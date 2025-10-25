@@ -40,8 +40,8 @@ export function BackgroundRenderer({ config, className = "", children }: Backgro
           <div
             className="absolute inset-0"
             style={{
-              backgroundColor: config.overlay.color,
-              opacity: config.overlay.opacity,
+              // Prefer applying opacity to the background color (rgba) rather than the element opacity
+              backgroundColor: overlayColorFor(config.overlay.color || '#000000', config.overlay.opacity ?? 0.35),
             }}
           />
         )}
@@ -51,6 +51,39 @@ export function BackgroundRenderer({ config, className = "", children }: Backgro
       <div className="relative z-10">{children}</div>
     </div>
   )
+}
+
+function overlayColorFor(color: string, opacity: number) {
+  // Simple converters for hex (#rgb, #rrggbb) and rgb(...) strings.
+  try {
+    color = (color || '').trim()
+    if (!color) return `rgba(0,0,0,${opacity})`
+    if (color.startsWith('#')) {
+      let hex = color.slice(1)
+      if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('')
+      if (hex.length !== 6) return `rgba(0,0,0,${opacity})`
+      const r = parseInt(hex.slice(0, 2), 16)
+      const g = parseInt(hex.slice(2, 4), 16)
+      const b = parseInt(hex.slice(4, 6), 16)
+      return `rgba(${r},${g},${b},${opacity})`
+    }
+    if (color.startsWith('rgb(')) {
+      // rgb(r,g,b)
+      const nums = color.replace(/[rgb()]/g, '').split(',').map((s) => s.trim())
+      return `rgba(${nums[0]},${nums[1]},${nums[2]},${opacity})`
+    }
+    if (color.startsWith('rgba(')) {
+      // rgba(r,g,b,a) -> replace alpha
+      const inside = color.replace(/rgba\(|\)/g, '')
+      const parts = inside.split(',').map((s) => s.trim())
+      parts[3] = String(opacity)
+      return `rgba(${parts.join(',')})`
+    }
+    // Fallback: return the color and let opacity be separate (less ideal)
+    return color
+  } catch (e) {
+    return `rgba(0,0,0,${opacity})`
+  }
 }
 
 // Gradient Background Component

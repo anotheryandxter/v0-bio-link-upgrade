@@ -4,7 +4,6 @@ export interface Profile {
   business_name: string
   avatar: string | null
   location: string
-  favicon: string | null
   page_title: string
   footer_text: string | null
   background_video: {
@@ -14,7 +13,8 @@ export interface Profile {
     poster: string | null
   } | null
   homepage_background?: BackgroundConfig
-  theme_preference: "light" | "dark" | "system"
+  // Theme preference is now fixed to light across the app
+  // theme_preference removed from DB; app enforces light mode globally
   is_setup: boolean
   created_at: string
   updated_at: string
@@ -94,6 +94,6 @@ export interface MediaUpload {
   file_type: string
   file_size: number
   url: string
-  usage_type: "avatar" | "favicon" | "background_image" | "background_video" | "link_icon"
+  usage_type: "avatar" | "background_image" | "background_video" | "link_icon"
   created_at: string
 }
