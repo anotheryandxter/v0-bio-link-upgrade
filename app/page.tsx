@@ -76,12 +76,7 @@ function DemoPage() {
             </p>
           </div>
 
-          <a
-            href="/login"
-            className="block w-full p-3 bg-mono-700 hover:bg-mono-600 text-mono-100 rounded-lg transition-colors"
-          >
-            Admin Setup
-          </a>
+          {/* Admin Setup link removed; access the admin login by clicking 8 times on the page background. */}
         </div>
       </div>
     </div>

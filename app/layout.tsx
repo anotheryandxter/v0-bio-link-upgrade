@@ -53,8 +53,56 @@ export default function RootLayout({
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
   <SuspenseAny fallback={null}>{children}</SuspenseAny>
+        {/* Security: disable common copy actions and right-click; add admin easter-egg (8 clicks on non-interactive area) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(){
+                try {
+                  // Disable right-click/context menu
+                  document.addEventListener('contextmenu', function(e){ e.preventDefault(); }, { passive: false });
+
+                  // Disable copy/cut/paste/select/drag
+                  ['copy','cut','paste','selectstart','dragstart'].forEach(function(ev){
+                    document.addEventListener(ev, function(e){ e.preventDefault(); }, { passive: false });
+                  });
+
+                  // Block some common keyboard shortcuts (Ctrl/Cmd + C/S/U/P etc.)
+                  document.addEventListener('keydown', function(e){
+                    var k = (e.key || '').toLowerCase();
+                    if ((e.ctrlKey || e.metaKey) && ['c','s','u','p','a','x'].indexOf(k) !== -1) {
+                      e.preventDefault();
+                    }
+                  }, { passive: false });
+
+                  // Easter-egg: 8 clicks on a non-interactive area (not on links/buttons/inputs) within 8s -> navigate to /login
+                  var clickCount = 0; var clickTimer = null;
+                  document.addEventListener('click', function(e){
+                    try {
+                      if (e.target.closest && e.target.closest('a,button,input,textarea,select,label,[role="button"]')) {
+                        // clicked on interactive element - ignore
+                        return;
+                      }
+                      clickCount++;
+                      if (clickTimer) clearTimeout(clickTimer);
+                      clickTimer = setTimeout(function(){ clickCount = 0; }, 8000);
+                      if (clickCount >= 8) {
+                        clickCount = 0;
+                        window.location.href = '/login';
+                      }
+                    } catch (err) { /* noop */ }
+                  }, { passive: true });
+                } catch (e) {
+                  // don't break the page if scripting fails
+                  console.warn('page security script failed', e);
+                }
+              })();
+            `,
+          }}
+        />
         <Analytics />
       </body>
     </html>
   )
 }
+
