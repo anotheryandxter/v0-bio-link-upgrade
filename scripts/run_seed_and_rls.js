@@ -6,7 +6,7 @@ import dotenv from 'dotenv'
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') })
 
-const files = ['scripts/002_configure_rls_policies.sql', 'scripts/003_insert_default_data.sql']
+const files = ['scripts/000_combined_migration.sql']
 
 async function run() {
   const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL

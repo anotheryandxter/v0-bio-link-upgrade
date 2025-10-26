@@ -8,9 +8,7 @@ import dotenv from 'dotenv'
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') })
 
 const sqlFiles = [
-  'scripts/001_create_database_schema.sql',
-  'scripts/002_configure_rls_policies.sql',
-  'scripts/003_insert_default_data.sql'
+  'scripts/000_combined_migration.sql'
 ]
 
 async function run() {

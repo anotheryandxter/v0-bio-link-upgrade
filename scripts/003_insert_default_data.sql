@@ -1,3 +1,19 @@
+-- DEFAULT DATA REMOVED FOR SECURITY
+--
+-- The original seed file contained example phone numbers, user placeholders,
+-- and other data that may be considered sensitive (PII / credentials). To
+-- prevent accidental leakage, this repository no longer stores seed data in
+-- VCS.
+--
+-- If you need to seed demo or production data, do one of the following:
+-- 1) Create a local-only file (e.g. scripts/900_seed_local_demo.sql) and add
+--    it to .gitignore so it is not committed.
+-- 2) Use a secure provisioning job that reads values from environment
+--    variables or a secret manager and performs idempotent upserts.
+--
+-- The consolidated schema and migration file is: scripts/000_combined_migration.sql
+-- Run that first (it contains DDL and non-sensitive migrations). Seed data
+-- should be applied separately by an operator with access to secure secrets.
 -- ===== INSERT DEFAULT DATA FOR REFLECTION PHOTOGRAPHY =====
 -- Note: This script assumes the user 'ryandxter' has been created in auth.users
 -- The user_id will need to be updated with the actual UUID after user creation

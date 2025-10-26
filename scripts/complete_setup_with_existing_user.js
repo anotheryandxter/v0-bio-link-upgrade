@@ -11,42 +11,53 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 if (!supabaseUrl || !supabaseServiceKey) {
   console.error('Missing Supabase environment variables')
   process.exit(1)
+#!/usr/bin/env node
+// Sanitized helper: complete setup for an existing user (no hard-coded email)
+//
+// The previous file used a hard-coded email address. To avoid committing
+// PII, this file now expects the operator to provide the target email via
+// environment variable `EXISTING_USER_EMAIL` and will abort if it's not set.
+
+import dotenv from 'dotenv'
+import path from 'path'
+import { createClient } from '@supabase/supabase-js'
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') })
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const existingEmail = process.env.EXISTING_USER_EMAIL
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('Missing Supabase environment variables')
+  process.exit(1)
+}
+
+if (!existingEmail) {
+  console.error('Missing EXISTING_USER_EMAIL - aborting. Provide the email via ENV and do not hard-code it.')
+  process.exit(1)
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 async function run() {
-  const email = 'ryndxtr@gmail.com'
   const { data: users, error } = await supabase.auth.admin.listUsers()
   if (error) {
     console.error('Failed to list users', error.message)
     process.exit(1)
   }
-  const user = users.users.find((u) => u.email === email)
+  const user = users.users.find((u) => u.email === existingEmail)
   if (!user) {
-    console.error('User not found; please run the create user step first')
+    console.error('User not found; please create the user securely first')
     process.exit(1)
   }
   const userId = user.id
   console.log('Found user id', userId)
 
-  // Upsert profile
+  // Upsert profile (idempotent)
   const { data: profileData, error: profileError } = await supabase
     .from('profiles')
-    .upsert({
-      user_id: userId,
-      business_name: 'Reflection Photography',
-  avatar: './assets/avatar.PNG',
-  location: 'Indonesia',
-  page_title: 'Reflection Photography',
-      background_video: {
-        webm: 'web.webm',
-        mp4: 'web.mp4',
-        ogv: 'web.ogv',
-        poster: 'img/videoframe.jpg',
-      },
-      is_setup: true,
-    }, { onConflict: ['user_id'] })
+    .upsert({ user_id: userId, business_name: 'Reflection Photography', is_setup: true }, { onConflict: ['user_id'] })
     .select()
     .single()
 
@@ -55,39 +66,6 @@ async function run() {
     process.exit(1)
   }
   console.log('Profile upserted', profileData.id)
-
-  // Insert default links (idempotent)
-  const defaultLinks = [
-    {
-      profile_id: profileData.id,
-      title: 'MEMBERSHIP',
-      url: 'https://drive.google.com/file/d/1pS9eX3F9YlYLh0fvrI4txWdLD_lagDKV/view?pli=1',
-      icon: 'fa fa-info-circle',
-      background_color_light: '#ffd621',
-      background_color_dark: '#f59e0b',
-      text_color_light: '#333333',
-      text_color_dark: '#1f2937',
-      opacity: 0.9,
-      order_index: 1,
-      category: 'main',
-    },
-    // ... other links omitted for brevity; we'll reuse the earlier file's defaults
-  ]
-
-  // For brevity, insert a subset to test
-  for (const l of defaultLinks) {
-    const { error: ie } = await supabase.from('links').insert(l).select()
-    if (ie) {
-      if (ie.code && ie.code === '23505') {
-        console.log('Link already exists, skipping', l.title)
-        continue
-      }
-      console.error('Failed to insert link', l.title, ie.message)
-    } else {
-      console.log('Inserted', l.title)
-    }
-  }
-
   console.log('Done')
 }
 
