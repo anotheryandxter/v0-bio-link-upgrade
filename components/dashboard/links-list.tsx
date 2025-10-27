@@ -77,6 +77,10 @@ export function LinksList({ links, onEdit, onDelete, onToggleActive, isLoading }
               {link.is_active ? "Hide" : "Show"}
             </Button>
             <Button variant="outline" size="sm" onClick={() => onEdit(link)} disabled={isLoading}>
+              <i className="fas fa-chart-bar mr-1" />
+              Analytics
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => onEdit(link)} disabled={isLoading}>
               <i className="fas fa-edit mr-1" />
               Edit
             </Button>
