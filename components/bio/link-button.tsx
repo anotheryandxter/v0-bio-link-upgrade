@@ -31,31 +31,44 @@ export function LinkButton({ link }: LinkButtonProps) {
   const trackClick = async (linkId: string) => {
     try {
       const userIdentifier = getVisitorId()
-      await fetch("/api/analytics/track", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          linkId,
-          userIdentifier,
-          userAgent: navigator.userAgent,
-          referrer: document.referrer || null,
-        }),
+      const payload = JSON.stringify({
+        linkId,
+        userIdentifier,
+        userAgent: navigator.userAgent,
+        referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+      })
+
+      // Use sendBeacon when available (fire-and-forget, non-blocking)
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([payload], { type: 'application/json' })
+        // sendBeacon returns boolean indicating that data was queued
+        navigator.sendBeacon('/api/analytics/track', blob)
+        return
+      }
+
+      // Fallback: fire fetch but don't await it (non-blocking)
+      fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+      }).catch((err) => {
+        // swallow errors to avoid impacting navigation
+        console.error('Failed to track click (fire-and-forget):', err)
       })
     } catch (error) {
-      console.error("Failed to track click:", error)
+      console.error('Failed to prepare track payload:', error)
     }
   }
 
-  const handleClick = async () => {
+  const handleClick = () => {
     setIsClicked(true)
     try {
-      await trackClick(link.id)
+      // Fire-and-forget tracking so the link opens immediately (avoids blocking UX)
+      void trackClick(link.id)
       window.open(link.url, "_blank", "noopener,noreferrer")
     } catch (error) {
       console.error("Failed to track click:", error)
-      // Still open the link even if tracking fails
       window.open(link.url, "_blank", "noopener,noreferrer")
     } finally {
       setTimeout(() => setIsClicked(false), 200)

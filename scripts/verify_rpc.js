@@ -30,7 +30,7 @@ async function run() {
   console.log('Index rows:', idx.rows.length, idx.rows);
 
   console.log('\n3) Select a recent link to test');
-  const linkRes = await client.query(`SELECT id::text AS id, title, profile_id::text AS profile_id FROM links ORDER BY created_at DESC LIMIT 1`);
+  const linkRes = await client.query(`SELECT id::text AS id, title FROM links ORDER BY created_at DESC LIMIT 1`);
   if (!linkRes.rows.length) {
     console.error('No links found in links table. Create a link first.');
     await client.end();
@@ -65,9 +65,9 @@ async function run() {
   );
   console.log('link_clicks rows (count=' + clicks.rowCount + '):', clicks.rows);
 
-  console.log('\n7) Call get_monthly_stats for profile');
-  const stats = await client.query('SELECT * FROM get_monthly_stats($1::uuid)', [link.profile_id]);
-  console.log('Monthly stats rows (count=' + stats.rowCount + '):', stats.rows);
+  console.log('\n7) Call get_link_stats for the selected link (sample)');
+  const stats = await client.query('SELECT * FROM get_link_stats($1::date, $2::date, $3::uuid, $4::text, $5::int, $6::int)', [null, null, link.id, null, 10, 0]);
+  console.log('Link stats rows (count=' + stats.rowCount + '):', stats.rows);
 
   await client.end();
   console.log('\nDone.');

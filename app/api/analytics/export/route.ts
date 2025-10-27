@@ -15,27 +15,38 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
 
     // Get profile
-    const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).single()
-    if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 })
+  // single-admin site: profile exists for admin but analytics RPCs are now profile-agnostic
 
     const admin = createAdminSupabaseClient()
 
-    const { data: rows, error } = await admin.rpc("get_monthly_stats", { p_profile_id: profile.id })
+    // Support optional query params for range and filtering
+    const url = new URL(request.url)
+    const start = url.searchParams.get('start')
+    const end = url.searchParams.get('end')
+    const linkId = url.searchParams.get('linkId')
+    const search = url.searchParams.get('search')
+
+    const { data: rows, error } = await admin.rpc("get_link_stats", {
+      p_start_date: start || null,
+      p_end_date: end || null,
+      p_link_id: linkId || null,
+      p_search: search || null,
+    })
     if (error) {
       console.error("Failed to fetch monthly stats:", error)
       return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 })
     }
 
     // If client requested CSV
-    const url = new URL(request.url)
-    if (url.searchParams.get("format") === "csv") {
+    const reqUrl = new URL(request.url)
+    if (reqUrl.searchParams.get("format") === "csv") {
       const header = "link_id,title,month,clicks\n"
       const csv = rows.map((r: any) => `${r.link_id},"${(r.title || "").replace(/"/g, '""')}",${r.month},${r.clicks}`).join("\n")
       return new NextResponse(header + csv, {
         status: 200,
         headers: {
           "Content-Type": "text/csv",
-          "Content-Disposition": `attachment; filename="monthly_stats_${profile.id}.csv"`,
+          "Content-Disposition": `attachment; filename="monthly_stats.csv"`,
         },
       })
     }

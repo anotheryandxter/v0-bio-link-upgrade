@@ -162,6 +162,77 @@ AS $$
   ORDER BY month;
 $$;
 
+-- More flexible stats RPC: supports optional start/end dates, link filter, and search on title/url.
+CREATE OR REPLACE FUNCTION public.get_link_stats(
+  p_profile_id uuid,
+  p_start_date date DEFAULT NULL,
+  p_end_date date DEFAULT NULL,
+  p_link_id uuid DEFAULT NULL,
+  p_search text DEFAULT NULL,
+  p_limit int DEFAULT NULL,
+  p_offset int DEFAULT 0
+)
+RETURNS TABLE(link_id uuid, title text, url text, month date, clicks int)
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT l.id AS link_id,
+         l.title,
+         l.url,
+         date_trunc('month', lc.clicked_at)::date AS month,
+         COUNT(*)::int AS clicks
+  FROM link_clicks lc
+  JOIN links l ON lc.link_id = l.id
+  WHERE l.profile_id = p_profile_id
+    AND (p_link_id IS NULL OR l.id = p_link_id)
+    AND (p_search IS NULL OR (l.title ILIKE '%' || p_search || '%' OR l.url ILIKE '%' || p_search || '%'))
+    AND (p_start_date IS NULL OR lc.clicked_at >= p_start_date::timestamp)
+    AND (p_end_date IS NULL OR lc.clicked_at < (p_end_date::timestamp + INTERVAL '1 day'))
+  GROUP BY l.id, l.title, l.url, date_trunc('month', lc.clicked_at)
+  ORDER BY month DESC, clicks DESC
+  LIMIT COALESCE(p_limit, NULL) OFFSET COALESCE(p_offset, 0);
+$$;
+
+-- Count RPC for pagination total
+CREATE OR REPLACE FUNCTION public.get_link_stats_count(
+  p_profile_id uuid,
+  p_start_date date DEFAULT NULL,
+  p_end_date date DEFAULT NULL,
+  p_link_id uuid DEFAULT NULL,
+  p_search text DEFAULT NULL
+)
+RETURNS TABLE(total bigint)
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT COUNT(*)::bigint AS total
+  FROM (
+    SELECT 1
+    FROM link_clicks lc
+    JOIN links l ON lc.link_id = l.id
+    WHERE l.profile_id = p_profile_id
+      AND (p_link_id IS NULL OR l.id = p_link_id)
+      AND (p_search IS NULL OR (l.title ILIKE '%' || p_search || '%' OR l.url ILIKE '%' || p_search || '%'))
+      AND (p_start_date IS NULL OR lc.clicked_at >= p_start_date::timestamp)
+      AND (p_end_date IS NULL OR lc.clicked_at < (p_end_date::timestamp + INTERVAL '1 day'))
+  ) sub;
+$$;
+
+-- Helpful index for date range queries
+CREATE INDEX IF NOT EXISTS idx_link_clicks_clicked_at ON link_clicks (clicked_at);
+-- Composite indexes for common query patterns (profile + clicked_at) and (link + clicked_at)
+-- Only create profile-based indexes if the profile_id column exists (single-admin deployments may not have it)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'link_clicks' AND column_name = 'profile_id'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_link_clicks_profile_clicked_at ON link_clicks (profile_id, clicked_at);
+  END IF;
+END$$;
+CREATE INDEX IF NOT EXISTS idx_link_clicks_link_clicked_at ON link_clicks (link_id, clicked_at);
+
 -- ===== 008_materialized_monthly_stats.sql =====
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.monthly_link_stats AS
 SELECT
@@ -183,6 +254,9 @@ BEGIN
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.monthly_link_stats;
 END;
 $$;
+
+-- Backfill helper: insert aggregated rows into materialized view (upsert)
+-- This is a helper statement; materialized view should be refreshed via refresh_monthly_link_stats()
 
 -- ===== 009_remove_theme_preference.sql =====
 BEGIN;

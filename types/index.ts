@@ -22,7 +22,7 @@ export interface Profile {
 
 export interface Link {
   id: string
-  profile_id: string
+  profile_id?: string
   title: string
   url: string
   icon: string

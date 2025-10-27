@@ -8,9 +8,13 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   try {
-    const url = new URL(request.url)
-    const profileId = url.searchParams.get('profileId')
-    if (!profileId) return NextResponse.json({ error: 'profileId required' }, { status: 400 })
+  const url = new URL(request.url)
+  const startDate = url.searchParams.get('start') // yyyy-mm-dd
+  const endDate = url.searchParams.get('end') // yyyy-mm-dd
+  const linkId = url.searchParams.get('linkId')
+  const search = url.searchParams.get('search')
+  const limit = url.searchParams.get('limit')
+  const offset = url.searchParams.get('offset')
 
     // Authenticate: allow if service role key present, otherwise require session user
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -21,7 +25,7 @@ export async function GET(request: Request) {
     }
 
     const redis = getRedisClient()
-    const cacheKey = `monthly:${profileId}`
+  const cacheKey = `monthly::${startDate || ''}:${endDate || ''}:${linkId || ''}:${search || ''}`
     if (redis) {
       const cached = await redis.get(cacheKey)
       if (cached) {
@@ -30,7 +34,18 @@ export async function GET(request: Request) {
     }
 
     const admin = createAdminSupabaseClient()
-    const rpcResult: any = await timeAsync('rpc:get_monthly_stats', async () => await admin.rpc('get_monthly_stats', { p_profile_id: profileId }))
+    // Call paginated RPC
+    const pLimit = limit ? parseInt(limit, 10) : null
+    const pOffset = offset ? parseInt(offset, 10) : 0
+
+    const rpcResult: any = await timeAsync('rpc:get_link_stats', async () => await admin.rpc('get_link_stats', {
+      p_start_date: startDate || null,
+      p_end_date: endDate || null,
+      p_link_id: linkId || null,
+      p_search: search || null,
+      p_limit: pLimit,
+      p_offset: pOffset,
+    }))
     const data = rpcResult?.data
     const error = rpcResult?.error
     if (error) {
@@ -38,12 +53,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 })
     }
 
+    // Fetch total count for pagination
+    const countResult: any = await admin.rpc('get_link_stats_count', {
+      p_start_date: startDate || null,
+      p_end_date: endDate || null,
+      p_link_id: linkId || null,
+      p_search: search || null,
+    })
+    const total = (countResult?.data && countResult.data[0] && countResult.data[0].total) ? parseInt(countResult.data[0].total, 10) : 0
+
     if (redis) {
       // cache for short period
-      await redis.set(cacheKey, JSON.stringify(data), 'EX', 60)
+      await redis.set(cacheKey, JSON.stringify({ data, total }), 'EX', 60)
     }
 
-    return NextResponse.json({ data, source: 'rpc' })
+    return NextResponse.json({ data, total, source: 'rpc' })
   } catch (err) {
     console.error('monthly api error', err)
     return NextResponse.json({ error: 'Internal' }, { status: 500 })

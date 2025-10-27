@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server"
+import getRedisClient from '@/lib/cache/redis'
 import { timeAsync } from '@/lib/profiler'
 import { BioPage } from "@/components/bio/bio-page"
 import { redirect } from "next/navigation"
@@ -29,9 +30,38 @@ export default async function HomePage() {
     console.log("[v0] Attempting to connect to Supabase...")
 
     // Check if profile is setup
-    const { data: profile, error: profileError } = await timeAsync('supabase:profiles_check_setup', async () =>
-      supabase.from("profiles").select("*").eq("is_setup", true).single()
-    )
+    const redis = getRedisClient()
+    const profileCacheKey = 'profile:setup'
+    let profile: any = null
+    let profileError: any = null
+
+    if (redis) {
+      try {
+        const cached = await redis.get(profileCacheKey)
+        if (cached) {
+          profile = JSON.parse(cached)
+        }
+      } catch (e) {
+        console.warn('[v0] Redis read failed for profile cache', e)
+      }
+    }
+
+    if (!profile) {
+      const result = await timeAsync('supabase:profiles_check_setup', async () =>
+        supabase.from("profiles").select("*").eq("is_setup", true).single()
+      )
+      profile = result.data
+      profileError = result.error
+
+      if (redis && profile) {
+        try {
+          // cache for short period (30s)
+          await redis.set(profileCacheKey, JSON.stringify(profile), 'EX', 30)
+        } catch (e) {
+          console.warn('[v0] Redis write failed for profile cache', e)
+        }
+      }
+    }
 
     console.log("[v0] Profile query result:", { profile, profileError })
 
@@ -41,10 +71,40 @@ export default async function HomePage() {
       redirect("/login")
     }
 
-    // Get active links ordered by order_index
-    const { data: links, error: linksError } = await timeAsync('supabase:links_active', async () =>
-      supabase.from("links").select("*").eq("profile_id", profile.id).eq("is_active", true).order("order_index")
-    )
+  // Get active links ordered by order_index — select only required columns to reduce payload and SSR time
+  const linksCacheKey = `links:active`
+    let links: any = null
+    let linksError: any = null
+
+    if (redis) {
+      try {
+        const cached = await redis.get(linksCacheKey)
+        if (cached) links = JSON.parse(cached)
+      } catch (e) {
+        console.warn('[v0] Redis read failed for links cache', e)
+      }
+    }
+
+    if (!links) {
+      const result = await timeAsync('supabase:links_active', async () =>
+        supabase
+          .from("links")
+          .select("id,title,url,icon,background_color_light,text_color_light,background_image,opacity,order_index,is_active")
+          .eq("is_active", true)
+          .order("order_index")
+      )
+      links = result.data
+      linksError = result.error
+
+      if (redis && links) {
+        try {
+          // cache for short period (30s)
+          await redis.set(linksCacheKey, JSON.stringify(links), 'EX', 30)
+        } catch (e) {
+          console.warn('[v0] Redis write failed for links cache', e)
+        }
+      }
+    }
 
     console.log("[v0] Links query result:", { links, linksError })
 

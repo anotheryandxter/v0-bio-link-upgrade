@@ -5,7 +5,7 @@ import { getCachedMonthlyStats, setCachedMonthlyStats } from '@/lib/cache/monthl
 import { timeAsync } from '@/lib/profiler'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardAction, CardFooter } from "@/components/ui/card"
 import dynamicImport from 'next/dynamic'
-const MonthlyChart = dynamicImport(() => import('@/components/dashboard/monthly-stats-client'), { ssr: false })
+const AnalyticsPanelClient = dynamicImport(() => import('@/components/dashboard/analytics-panel-client'), { ssr: false })
 
 export const dynamic = "force-dynamic"
 
@@ -18,7 +18,7 @@ export default async function AnalyticsPage() {
 
   if (!user) return null
 
-  // Get profile
+  // Get profile (admin user metadata); keep for UI but analytics are site-wide
   const { data: profile } = await supabase.from("profiles").select("*").eq("user_id", user.id).single()
 
   if (!profile) return null
@@ -29,18 +29,24 @@ export default async function AnalyticsPage() {
     .from("link_clicks")
     .select(`
       *,
-      links!inner(title, url, profile_id)
+      links!inner(title, url)
     `)
-    .eq("links.profile_id", profile.id)
     .order("clicked_at", { ascending: false })
     .limit(100)
 
   const admin = createAdminSupabaseClient()
 
-  const cacheKey = `monthly:${profile.id}`
+  // Default range: last 6 months
+  const sixMonthsAgo = new Date()
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
+  sixMonthsAgo.setDate(1)
+  const startStr = sixMonthsAgo.toISOString().slice(0,10)
+  const endStr = new Date().toISOString().slice(0,10)
+
+  const cacheKey = `monthly::${startStr}:${endStr}`
   let monthlyRows = getCachedMonthlyStats(cacheKey)
   if (!monthlyRows) {
-    const rpcResult: any = await timeAsync('rpc:get_monthly_stats', async () => await admin.rpc('get_monthly_stats', { p_profile_id: profile.id }))
+    const rpcResult: any = await timeAsync('rpc:get_link_stats', async () => await admin.rpc('get_link_stats', { p_start_date: startStr, p_end_date: endStr }))
     const data = rpcResult?.data
     const monthlyErr = rpcResult?.error
     if (monthlyErr) {
@@ -65,7 +71,7 @@ export default async function AnalyticsPage() {
   const CardContentAny = CardContent as any
   const CardActionAny = CardAction as any
   const CardFooterAny = CardFooter as any
-  const MonthlyChartAny = MonthlyChart as any
+  const AnalyticsPanelAny = AnalyticsPanelClient as any
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -127,14 +133,11 @@ export default async function AnalyticsPage() {
         </CardHeaderAny>
         <CardContentAny>
             {/* Show monthly chart if available */}
-            {chartData && chartData.length > 0 ? (
-              <>
-                <MonthlyChartAny profileId={profile.id} />
-                <div className="mt-4 flex justify-end">
-                  <a href="/api/analytics/export?format=csv" className="inline-flex items-center px-3 py-1.5 bg-slate-800 text-white rounded-md">Export CSV</a>
-                </div>
-              </>
-            ) : (
+                    {chartData && chartData.length > 0 ? (
+                      <>
+                        <AnalyticsPanelAny links={clicksData?.map((c: any) => c.links).filter(Boolean)} defaultStart={startStr} defaultEnd={endStr} />
+                      </>
+                    ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <i className="fas fa-chart-bar text-4xl mb-4 block" />
                 <p>No monthly stats available yet. Share your bio-link to start tracking!</p>
