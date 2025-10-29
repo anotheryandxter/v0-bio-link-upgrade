@@ -1,6 +1,7 @@
 import type { Link } from "@/types"
 import { LinkButton } from "./link-button"
 import SocialIcons from "./social-icons"
+import MapCard from "./map-card"
 
 interface LinksSectionProps {
   links: Link[]
@@ -28,7 +29,7 @@ export function LinksSection({ links }: LinksSectionProps) {
         <div>
           <h3 className="text-white/80 text-sm font-medium mb-3 text-center">Locations</h3>
           {locationLinks.map((link) => (
-            <LinkButton key={link.id} link={link} />
+            <MapCard key={link.id} link={link} />
           ))}
         </div>
       )}

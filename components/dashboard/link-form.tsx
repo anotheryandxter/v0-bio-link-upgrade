@@ -36,6 +36,35 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
     category: link?.category || "main",
     order_index: link?.order_index || 0,
   })
+  // location-specific inputs (not separate DB columns — we encode into URL)
+  const [locationMode, setLocationMode] = useState<"place_id" | "coords">(() => {
+    if (link?.category === "location") {
+      if (link.url?.includes("destination_place_id=")) return "place_id"
+      if (link.url?.includes("destination=")) return "coords"
+    }
+    return "place_id"
+  })
+  const [placeId, setPlaceId] = useState<string>(() => {
+    if (link?.category === "location") {
+      const m = link.url?.match(/destination_place_id=([^&]+)/)
+      return m ? decodeURIComponent(m[1]) : ""
+    }
+    return ""
+  })
+  const [lat, setLat] = useState<string>(() => {
+    if (link?.category === "location") {
+      const m = link.url?.match(/destination=([-0-9.]+),([-0-9.]+)/)
+      return m ? m[1] : ""
+    }
+    return ""
+  })
+  const [lng, setLng] = useState<string>(() => {
+    if (link?.category === "location") {
+      const m = link.url?.match(/destination=([-0-9.]+),([-0-9.]+)/)
+      return m ? m[2] : ""
+    }
+    return ""
+  })
   const [iconType, setIconType] = useState<"fontawesome" | "custom">(
     link?.icon?.startsWith("data:") || link?.icon?.startsWith("http") ? "custom" : "fontawesome",
   )
@@ -49,6 +78,20 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
     setError("")
 
     try {
+      // If this is a location link, synthesize a Google Maps directions URL
+      if (formData.category === "location") {
+        if (locationMode === "place_id" && placeId) {
+          // Use destination_place_id so Google resolves the place
+          formData.url = `https://www.google.com/maps/dir/?api=1&destination_place_id=${encodeURIComponent(
+            placeId,
+          )}&travelmode=driving`
+        } else if (locationMode === "coords" && lat && lng) {
+          formData.url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+            `${lat},${lng}`,
+          )}&travelmode=driving`
+        }
+      }
+
       if (link) {
         // Update existing link
         const { data, error } = await supabase
@@ -190,6 +233,41 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
               />
             </div>
           </div>
+
+          {/* Location inputs: only shown when Category is 'location' */}
+          {formData.category === "location" && (
+            <div className="space-y-3">
+              <Label>Location Input</Label>
+              <div className="flex gap-2">
+                <Select value={locationMode} onValueChange={(v) => setLocationMode(v as any)}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="place_id">Place ID (preferred)</SelectItem>
+                    <SelectItem value="coords">Coordinates (lat,lng)</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {locationMode === "place_id" ? (
+                  <Input
+                    placeholder="Place ID (e.g. ChIJN1t_tDeuEmsRUsoyG83frY4)"
+                    value={placeId}
+                    onChange={(e) => setPlaceId(e.target.value)}
+                    className="flex-1"
+                  />
+                ) : (
+                  <div className="flex gap-2 w-full">
+                    <Input placeholder="Latitude" value={lat} onChange={(e) => setLat(e.target.value)} />
+                    <Input placeholder="Longitude" value={lng} onChange={(e) => setLng(e.target.value)} />
+                  </div>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                When saved, the form will generate a Google Maps directions link automatically. Clicking the card will open directions.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
