@@ -135,7 +135,7 @@ export default async function AnalyticsPage() {
             {/* Show monthly chart if available */}
                     {chartData && chartData.length > 0 ? (
                       <>
-                        <AnalyticsPanelAny links={clicksData?.map((c: any) => c.links).filter(Boolean)} defaultStart={startStr} defaultEnd={endStr} />
+                        <AnalyticsPanelAny links={clicksData?.map((c: any) => c.links).filter(Boolean)} defaultStart={startStr} defaultEnd={endStr} profileId={profile.id} />
                       </>
                     ) : (
               <div className="text-center py-8 text-muted-foreground">

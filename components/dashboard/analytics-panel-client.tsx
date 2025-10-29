@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import MonthlyStatsClient from './monthly-stats-client'
 
-export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd }: { links: any[], defaultStart: string, defaultEnd: string }) {
+export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, profileId }: { links: any[], defaultStart: string, defaultEnd: string, profileId: string }) {
   const [start, setStart] = useState<string>(defaultStart)
   const [end, setEnd] = useState<string>(defaultEnd)
   const [linkId, setLinkId] = useState<string | null>(null)
@@ -24,7 +24,8 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd }
       setLoading(true)
       try {
         const offset = (page - 1) * perPage
-        const params = new URLSearchParams({ start, end, limit: String(perPage), offset: String(offset) })
+  const params = new URLSearchParams({ start, end, limit: String(perPage), offset: String(offset) })
+  if (profileId) params.set('profileId', profileId)
         if (linkId) params.set('linkId', linkId)
         if (search) params.set('search', search)
         const res = await fetch(`/api/analytics/monthly?${params.toString()}`)
@@ -75,7 +76,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd }
       </div>
 
       <div>
-        <MonthlyStatsClient start={start} end={end} />
+        <MonthlyStatsClient start={start} end={end} profileId={profileId} />
       </div>
 
       <div>

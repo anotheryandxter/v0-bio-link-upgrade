@@ -27,16 +27,10 @@ export default function RootLayout({
   return (
   <html lang="en" className="light">
       <head>
-        {/* FontAwesome stylesheet - preload and preconnect for faster FCP */}
-        <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossOrigin="anonymous" />
-        <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-        <link
-          rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
-          crossOrigin="anonymous"
-          referrerPolicy="no-referrer"
-        />
+    {/* FontAwesome: prefer local copy (we ship webfonts under public/remote-assets).
+        This avoids relying on a CDN and keeps the app self-contained. */}
+    <link rel="preload" as="style" href="/remote-assets/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="/remote-assets/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
         {/* Favicon link tags for multiple sizes. We point them to /api/favicon which
             serves the provided PNG; browsers will scale as needed. If you'd like
             fully static, high-quality resized assets, we can add them to /public/. */}
