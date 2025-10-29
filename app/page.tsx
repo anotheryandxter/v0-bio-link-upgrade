@@ -89,7 +89,10 @@ export default async function HomePage() {
       const result = await timeAsync('supabase:links_active', async () =>
         supabase
           .from("links")
-          .select("id,title,url,icon,background_color_light,text_color_light,background_image,opacity,order_index,is_active")
+          // include `category` so the client can group links into main/location/social
+          .select(
+            "id,title,url,icon,background_color_light,text_color_light,background_image,opacity,order_index,is_active,category"
+          )
           .eq("is_active", true)
           .order("order_index")
       )

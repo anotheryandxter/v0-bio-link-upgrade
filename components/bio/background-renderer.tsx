@@ -9,9 +9,10 @@ interface BackgroundRendererProps {
   config: BackgroundConfig
   className?: string
   children?: React.ReactNode
+  parallaxStrength?: number
 }
 
-export function BackgroundRenderer({ config, className = "", children }: BackgroundRendererProps) {
+export function BackgroundRenderer({ config, className = "", children, parallaxStrength = 1 }: BackgroundRendererProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const renderBackground = () => {
@@ -126,43 +127,44 @@ function SolidBackground({ color }: { color: string }) {
 // Image Background Component
 interface ImageBackgroundProps {
   config: BackgroundConfig["image"]
+  strength?: number
 }
 
+// Enhanced ImageBackground with smooth parallax behavior
 function ImageBackground({ config }: ImageBackgroundProps) {
   if (!config) return null
 
-  const backgroundSize = {
-    cover: "cover",
-    contain: "contain",
-    fill: "100% 100%",
-    stretch: "100% 100%",
-    none: "auto",
-  }[config.fit]
+  // Static background image: size is driven by CSS object-fit/object-position
+  // No scroll-based transforms or rAF loops. The image will responsively
+  // size itself according to the selected `fit` (cover/contain) and `position`.
 
-  const backgroundPosition = {
-    center: "center",
-    top: "top",
-    bottom: "bottom",
-    left: "left",
-    right: "right",
-    "top-left": "top left",
-    "top-right": "top right",
-    "bottom-left": "bottom left",
-    "bottom-right": "bottom right",
-  }[config.position]
+  const objectFitClass = ( {
+    cover: 'object-cover',
+    contain: 'object-contain',
+    fill: 'object-fill',
+    stretch: 'object-fill',
+  } as Record<string, string> )[config.fit || 'cover']
+
+  const objectPositionClass = ( {
+    center: 'object-center',
+    top: 'object-top',
+    bottom: 'object-bottom',
+    left: 'object-left',
+    right: 'object-right',
+  } as Record<string, string> )[config.position || 'center']
 
   return (
-    <div
-      className="w-full h-full"
-      style={{
-        backgroundImage: `url(${config.url})`,
-        backgroundSize,
-        backgroundPosition,
-        backgroundRepeat: "no-repeat",
-        opacity: config.opacity || 1,
-        filter: config.blur ? `blur(${config.blur}px)` : undefined,
-      }}
-    />
+    <div className="w-full h-full overflow-hidden relative">
+      <img
+        src={config.url}
+        alt="background"
+        className={`w-full h-full ${objectFitClass} ${objectPositionClass}`}
+        style={{
+          opacity: config.opacity ?? 1,
+          filter: config.blur ? `blur(${config.blur}px)` : undefined,
+        }}
+      />
+    </div>
   )
 }
 
@@ -170,28 +172,32 @@ function ImageBackground({ config }: ImageBackgroundProps) {
 interface VideoBackgroundProps {
   config: BackgroundConfig["video"]
   videoRef: React.RefObject<HTMLVideoElement>
+  strength?: number
 }
 
 function VideoBackground({ config, videoRef }: VideoBackgroundProps) {
   if (!config) return null
 
-  const objectFit = {
-    cover: "object-cover",
-    contain: "object-contain",
-    fill: "object-fill",
-    stretch: "object-fill",
-  }[config.fit]
+  // Static video background: no scroll-based transforms. The video will
+  // responsively size itself using CSS object-fit/object-position.
 
-  const objectPosition = {
-    center: "object-center",
-    top: "object-top",
-    bottom: "object-bottom",
-    left: "object-left",
-    right: "object-right",
-  }[config.position]
+  const objectFitClass = ( {
+    cover: 'object-cover',
+    contain: 'object-contain',
+    fill: 'object-fill',
+    stretch: 'object-fill',
+  } as Record<string, string> )[config.fit || 'cover']
+
+  const objectPositionClass = ( {
+    center: 'object-center',
+    top: 'object-top',
+    bottom: 'object-bottom',
+    left: 'object-left',
+    right: 'object-right',
+  } as Record<string, string> )[config.position || 'center']
 
   return (
-    <div className="w-full h-full overflow-hidden">
+    <div className="w-full h-full overflow-hidden relative">
       <video
         ref={videoRef}
         autoPlay={config.autoplay}
@@ -199,9 +205,9 @@ function VideoBackground({ config, videoRef }: VideoBackgroundProps) {
         muted={config.muted}
         playsInline
         poster={config.poster || undefined}
-        className={`w-full h-full ${objectFit} ${objectPosition}`}
+        className={`w-full h-full ${objectFitClass} ${objectPositionClass}`}
         style={{
-          opacity: config.opacity || 1,
+          opacity: config.opacity ?? 1,
           filter: config.blur ? `blur(${config.blur}px)` : undefined,
         }}
       >
