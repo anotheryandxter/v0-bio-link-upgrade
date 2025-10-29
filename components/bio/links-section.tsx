@@ -1,5 +1,6 @@
 import type { Link } from "@/types"
 import { LinkButton } from "./link-button"
+import SocialIcons from "./social-icons"
 
 interface LinksSectionProps {
   links: Link[]
@@ -36,9 +37,7 @@ export function LinksSection({ links }: LinksSectionProps) {
       {socialLinks.length > 0 && (
         <div>
           <h3 className="text-white/80 text-sm font-medium mb-3 text-center">Social Media</h3>
-          {socialLinks.map((link) => (
-            <LinkButton key={link.id} link={link} />
-          ))}
+          <SocialIcons links={socialLinks} />
         </div>
       )}
     </div>

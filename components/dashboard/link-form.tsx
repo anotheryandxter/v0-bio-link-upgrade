@@ -6,11 +6,13 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import ColorInput from "@/components/ui/color-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ImageUpload } from "@/components/ui/image-upload"
+import IconPicker from "@/components/dashboard/icon-picker"
 import type { Link } from "@/types"
 
 interface LinkFormProps {
@@ -131,14 +133,12 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
               </TabsList>
 
               <TabsContent value="fontawesome" className="space-y-2">
-                <Input
+                <IconPicker
                   value={iconType === "fontawesome" ? formData.icon : "fas fa-link"}
-                  onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                  placeholder="fas fa-link"
-                  required
+                  onChange={(value) => setFormData({ ...formData, icon: value })}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Use FontAwesome class names (e.g., "fas fa-link", "fab fa-twitter")
+                  Pick a FontAwesome icon from the list above. You can still enter a custom class if needed.
                 </p>
               </TabsContent>
 
@@ -194,41 +194,37 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="background_color_light">Background (Light)</Label>
-              <Input
+              <ColorInput
                 id="background_color_light"
-                type="color"
                 value={formData.background_color_light}
-                onChange={(e) => setFormData({ ...formData, background_color_light: e.target.value })}
+                onChange={(v) => setFormData({ ...formData, background_color_light: v })}
               />
             </div>
 
             <div>
               <Label htmlFor="background_color_dark">Background (Dark)</Label>
-              <Input
+              <ColorInput
                 id="background_color_dark"
-                type="color"
                 value={formData.background_color_dark}
-                onChange={(e) => setFormData({ ...formData, background_color_dark: e.target.value })}
+                onChange={(v) => setFormData({ ...formData, background_color_dark: v })}
               />
             </div>
 
             <div>
               <Label htmlFor="text_color_light">Text (Light)</Label>
-              <Input
+              <ColorInput
                 id="text_color_light"
-                type="color"
                 value={formData.text_color_light}
-                onChange={(e) => setFormData({ ...formData, text_color_light: e.target.value })}
+                onChange={(v) => setFormData({ ...formData, text_color_light: v })}
               />
             </div>
 
             <div>
               <Label htmlFor="text_color_dark">Text (Dark)</Label>
-              <Input
+              <ColorInput
                 id="text_color_dark"
-                type="color"
                 value={formData.text_color_dark}
-                onChange={(e) => setFormData({ ...formData, text_color_dark: e.target.value })}
+                onChange={(v) => setFormData({ ...formData, text_color_dark: v })}
               />
             </div>
           </div>

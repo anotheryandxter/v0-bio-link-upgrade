@@ -14,7 +14,17 @@ interface LinksManagerProps {
 }
 
 export function LinksManager({ profileId, initialLinks }: LinksManagerProps) {
-  const [links, setLinks] = useState<Link[]>(initialLinks)
+  const categoryOrder = ["main", "location", "social"]
+  const sortLinks = (items: Link[]) =>
+    [...items].sort((a, b) => {
+      const ca = categoryOrder.indexOf(a.category)
+      const cb = categoryOrder.indexOf(b.category)
+      if (ca !== cb) return ca - cb
+      if ((a.order_index ?? 0) !== (b.order_index ?? 0)) return (a.order_index ?? 0) - (b.order_index ?? 0)
+      return a.title.localeCompare(b.title)
+    })
+
+  const [links, setLinks] = useState<Link[]>(() => sortLinks(initialLinks || []))
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingLink, setEditingLink] = useState<Link | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -73,19 +83,12 @@ export function LinksManager({ profileId, initialLinks }: LinksManagerProps) {
 
   const handleFormSuccess = (savedLink: Link) => {
     if (editingLink) {
-      // Replace the edited link in-place to preserve order
-      const idx = links.findIndex((l) => l.id === savedLink.id)
-      if (idx >= 0) {
-        const next = [...links]
-        next[idx] = savedLink
-        setLinks(next)
-      } else {
-        // fallback: replace by id
-        setLinks(links.map((link) => (link.id === savedLink.id ? savedLink : link)))
-      }
+      // Replace the edited link and then canonicalize order
+      const next = links.map((link) => (link.id === savedLink.id ? savedLink : link))
+      setLinks(sortLinks(next))
     } else {
-      // Insert new links at the top so they appear under the Add button
-      setLinks([savedLink, ...links])
+      // Insert new link and canonicalize order so it appears in its category/order slot
+      setLinks(sortLinks([...(links || []), savedLink]))
     }
 
     // Close form and clear editing state. Do not immediately refresh the router
@@ -108,18 +111,11 @@ export function LinksManager({ profileId, initialLinks }: LinksManagerProps) {
         </Button>
       </div>
 
-      <LinksList
-        links={links}
-        onEdit={handleEditLink}
-        onDelete={handleDeleteLink}
-        onToggleActive={handleToggleActive}
-        isLoading={isLoading}
-      />
-
-      {isFormOpen && (
+      {/* If adding a new link, render the form at the top so it appears directly under the Add button */}
+      {isFormOpen && !editingLink && (
         <LinkForm
           profileId={profileId}
-          link={editingLink}
+          link={null}
           onSuccess={handleFormSuccess}
           onCancel={() => {
             setIsFormOpen(false)
@@ -127,6 +123,29 @@ export function LinksManager({ profileId, initialLinks }: LinksManagerProps) {
           }}
         />
       )}
+
+      <LinksList
+        profileId={profileId}
+        links={links}
+        editingLink={editingLink}
+        onEdit={(link) => {
+          // open the inline editor under the clicked link
+          handleEditLink(link)
+        }}
+        onDelete={handleDeleteLink}
+        onToggleActive={handleToggleActive}
+        onFormSuccess={(savedLink: Link) => {
+          handleFormSuccess(savedLink)
+          // close the inline editor
+          setIsFormOpen(false)
+          setEditingLink(null)
+        }}
+        onFormCancel={() => {
+          setIsFormOpen(false)
+          setEditingLink(null)
+        }}
+        isLoading={isLoading}
+      />
     </div>
   )
 }

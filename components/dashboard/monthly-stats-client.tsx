@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
 
-export default function MonthlyStatsClient({ start, end }: { start?: string, end?: string }) {
+export default function MonthlyStatsClient({ start, end, profileId }: { start?: string, end?: string, profileId?: string }) {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -12,9 +12,10 @@ export default function MonthlyStatsClient({ start, end }: { start?: string, end
     async function fetchData() {
       setLoading(true)
       try {
-        const params = new URLSearchParams()
+  const params = new URLSearchParams()
         if (start) params.set('start', start)
         if (end) params.set('end', end)
+  if (profileId) params.set('profileId', profileId)
         const res = await fetch(`/api/analytics/monthly?${params.toString()}`)
         const json = await res.json()
         if (mounted) setData((json.data || []).map((r: any) => ({ name: `${r.title} (${new Date(r.month).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })})`, clicks: r.clicks })))
