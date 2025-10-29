@@ -1,3 +1,19 @@
+-- DEFAULT DATA REMOVED FOR SECURITY
+--
+-- The original seed file contained example phone numbers, user placeholders,
+-- and other data that may be considered sensitive (PII / credentials). To
+-- prevent accidental leakage, this repository no longer stores seed data in
+-- VCS.
+--
+-- If you need to seed demo or production data, do one of the following:
+-- 1) Create a local-only file (e.g. scripts/900_seed_local_demo.sql) and add
+--    it to .gitignore so it is not committed.
+-- 2) Use a secure provisioning job that reads values from environment
+--    variables or a secret manager and performs idempotent upserts.
+--
+-- The consolidated schema and migration file is: scripts/000_combined_migration.sql
+-- Run that first (it contains DDL and non-sensitive migrations). Seed data
+-- should be applied separately by an operator with access to secure secrets.
 -- ===== INSERT DEFAULT DATA FOR REFLECTION PHOTOGRAPHY =====
 -- Note: This script assumes the user 'ryandxter' has been created in auth.users
 -- The user_id will need to be updated with the actual UUID after user creation
@@ -8,26 +24,21 @@ INSERT INTO profiles (
   business_name, 
   avatar, 
   location, 
-  favicon, 
   page_title, 
   background_video,
-  theme_preference,
   is_setup
 ) VALUES (
   '00000000-0000-0000-0000-000000000000', -- Placeholder - update with actual user_id
   'Reflection Photography',
   './assets/avatar.PNG',
   'Indonesia',
-  './assets/favicon.png',
   'Reflection Photography',
   '{"webm":"web.webm","mp4":"web.mp4","ogv":"web.ogv","poster":"img/videoframe.jpg"}',
-  'system',
   true
 ) ON CONFLICT (user_id) DO UPDATE SET
   business_name = EXCLUDED.business_name,
   avatar = EXCLUDED.avatar,
   location = EXCLUDED.location,
-  favicon = EXCLUDED.favicon,
   page_title = EXCLUDED.page_title,
   background_video = EXCLUDED.background_video,
   is_setup = EXCLUDED.is_setup,

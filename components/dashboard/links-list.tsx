@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Link } from "@/types"
+import { usePathname } from "next/navigation"
 
 interface LinksListProps {
   links: Link[]
@@ -13,6 +14,8 @@ interface LinksListProps {
 }
 
 export function LinksList({ links, onEdit, onDelete, onToggleActive, isLoading }: LinksListProps) {
+  const pathname = usePathname()
+  const hideAnalytics = pathname === "/dashboard/links"
   const renderIcon = (icon: string) => {
     if (!icon) return <i className="fas fa-link text-lg" />
 
@@ -76,6 +79,12 @@ export function LinksList({ links, onEdit, onDelete, onToggleActive, isLoading }
               <i className={`fas fa-${link.is_active ? "eye-slash" : "eye"} mr-1`} />
               {link.is_active ? "Hide" : "Show"}
             </Button>
+            {!hideAnalytics && (
+              <Button variant="outline" size="sm" onClick={() => onEdit(link)} disabled={isLoading}>
+                <i className="fas fa-chart-bar mr-1" />
+                Analytics
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => onEdit(link)} disabled={isLoading}>
               <i className="fas fa-edit mr-1" />
               Edit

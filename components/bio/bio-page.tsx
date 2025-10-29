@@ -33,16 +33,7 @@ export function BioPage({ profile, links }: BioPageProps) {
 
   return (
     <BackgroundRenderer config={backgroundConfig}>
-      {/* Admin Button - floating in top right */}
-      <div className="fixed top-4 right-4 z-20">
-        <a
-          href="/login"
-          className="inline-flex items-center gap-2 px-3 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition-all duration-200 text-sm opacity-0"
-        >
-          <i className="fas fa-cog" />
-          Admin
-        </a>
-      </div>
+      {/* Admin button removed — login is now accessible via an easter-egg (8 background clicks). */}
 
       {/* Bio Content */}
       <div className="container mx-auto px-4 py-8">

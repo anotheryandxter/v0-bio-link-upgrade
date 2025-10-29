@@ -73,13 +73,26 @@ export function LinksManager({ profileId, initialLinks }: LinksManagerProps) {
 
   const handleFormSuccess = (savedLink: Link) => {
     if (editingLink) {
-      setLinks(links.map((link) => (link.id === savedLink.id ? savedLink : link)))
+      // Replace the edited link in-place to preserve order
+      const idx = links.findIndex((l) => l.id === savedLink.id)
+      if (idx >= 0) {
+        const next = [...links]
+        next[idx] = savedLink
+        setLinks(next)
+      } else {
+        // fallback: replace by id
+        setLinks(links.map((link) => (link.id === savedLink.id ? savedLink : link)))
+      }
     } else {
-      setLinks([...links, savedLink])
+      // Insert new links at the top so they appear under the Add button
+      setLinks([savedLink, ...links])
     }
+
+    // Close form and clear editing state. Do not immediately refresh the router
+    // to avoid clobbering optimistic UI ordering. The app will pick up server
+    // state on subsequent navigations or manual refresh.
     setIsFormOpen(false)
     setEditingLink(null)
-    router.refresh()
   }
 
   return (

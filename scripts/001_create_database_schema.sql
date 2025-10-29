@@ -9,10 +9,12 @@ CREATE TABLE profiles (
   business_name VARCHAR(255) DEFAULT 'Reflection Photography',
   avatar TEXT DEFAULT './assets/avatar.PNG',
   location VARCHAR(255) DEFAULT 'Indonesia',
-  favicon TEXT DEFAULT './assets/favicon.png',
   page_title VARCHAR(255) DEFAULT 'Reflection Photography',
   background_video JSONB DEFAULT '{"webm":"web.webm","mp4":"web.mp4","ogv":"web.ogv","poster":"img/videoframe.jpg"}',
-  theme_preference VARCHAR(10) DEFAULT 'system' CHECK (theme_preference IN ('light', 'dark', 'system')),
+  -- theme preference removed; app enforces a single light theme at the UI layer
+  -- (column removed via migration scripts/009_remove_theme_preference.sql)
+  
+  is_setup BOOLEAN DEFAULT false,
   is_setup BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

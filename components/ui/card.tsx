@@ -2,7 +2,7 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-function Card({ className, ...props }: React.ComponentProps<'div'>) {
+const Card: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, children, ...props }) => {
   return (
     <div
       data-slot="card"
@@ -11,11 +11,13 @@ function Card({ className, ...props }: React.ComponentProps<'div'>) {
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+    </div>
   )
 }
 
-function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
+const CardHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, children, ...props }) => {
   return (
     <div
       data-slot="card-header"
@@ -24,31 +26,37 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+    </div>
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
+const CardTitle: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, children, ...props }) => {
   return (
     <div
       data-slot="card-title"
       className={cn('leading-none font-semibold', className)}
       {...props}
-    />
+    >
+      {children}
+    </div>
   )
 }
 
-function CardDescription({ className, ...props }: React.ComponentProps<'div'>) {
+const CardDescription: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, children, ...props }) => {
   return (
     <div
       data-slot="card-description"
       className={cn('text-muted-foreground text-sm', className)}
       {...props}
-    />
+    >
+      {children}
+    </div>
   )
 }
 
-function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
+const CardAction: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, children, ...props }) => {
   return (
     <div
       data-slot="card-action"
@@ -57,27 +65,33 @@ function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+    </div>
   )
 }
 
-function CardContent({ className, ...props }: React.ComponentProps<'div'>) {
+const CardContent: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, children, ...props }) => {
   return (
     <div
       data-slot="card-content"
       className={cn('px-6', className)}
       {...props}
-    />
+    >
+      {children}
+    </div>
   )
 }
 
-function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
+const CardFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, children, ...props }) => {
   return (
     <div
       data-slot="card-footer"
       className={cn('flex items-center px-6 [.border-t]:pt-6', className)}
       {...props}
-    />
+    >
+      {children}
+    </div>
   )
 }
 

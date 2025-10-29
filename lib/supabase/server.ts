@@ -27,6 +27,23 @@ export async function createServerSupabaseClient() {
     } as any
   }
 
+  try {
+    new URL(supabaseUrl)
+  } catch (e) {
+    console.error('[v0] Invalid NEXT_PUBLIC_SUPABASE_URL in server helper:', e)
+    return {
+      from: () => ({
+        select: () => ({ data: null, error: new Error('Supabase not configured') }),
+        insert: () => ({ data: null, error: new Error('Supabase not configured') }),
+        update: () => ({ data: null, error: new Error('Supabase not configured') }),
+        delete: () => ({ data: null, error: new Error('Supabase not configured') }),
+      }),
+      auth: {
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      },
+    } as any
+  }
+
   const cookieStore = await cookies()
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {

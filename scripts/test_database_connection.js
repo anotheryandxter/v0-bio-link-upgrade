@@ -17,16 +17,16 @@ async function testDatabaseConnection() {
   console.log("[v0] Starting database connection test...")
 
   try {
-    // Test 1: Basic connection
+    // Test 1: Basic connection (get a sample row and total count)
     console.log("[v0] Testing basic connection...")
-    const { data, error } = await supabase.from("profiles").select("count(*)").single()
+    const { data, error, count } = await supabase.from("profiles").select("*", { count: 'exact' }).limit(1)
 
     if (error) {
       console.error("[v0] Connection test failed:", error.message)
       return false
     }
 
-    console.log("[v0] ✓ Database connection successful")
+    console.log("[v0] ✓ Database connection successful", count ? `(rows: ${count})` : "")
 
     // Test 2: Check table structure
     console.log("[v0] Testing table structure...")

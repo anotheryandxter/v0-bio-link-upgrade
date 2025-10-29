@@ -1,38 +1,25 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server"
+import getRedisClient from '@/lib/cache/redis'
+import { timeAsync } from '@/lib/profiler'
 import { BioPage } from "@/components/bio/bio-page"
 import { redirect } from "next/navigation"
 import type { Metadata } from "next"
 
+export const dynamic = "force-dynamic"
+
 export async function generateMetadata(): Promise<Metadata> {
-  try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("page_title, business_name, favicon")
-      .eq("is_setup", true)
-      .single()
-
-    if (profile) {
-      return {
-        title: profile.page_title || profile.business_name,
-        description: `${profile.business_name} - Bio Link`,
-        icons: profile.favicon
-          ? {
-              icon: profile.favicon,
-              shortcut: profile.favicon,
-              apple: profile.favicon,
-            }
-          : undefined,
-      }
-    }
-  } catch (error) {
-    console.log("[v0] Error generating metadata:", error)
-  }
-
+  // Use static favicons for all deployments. This removes dynamic favicon
+  // configuration from admin settings and ensures consistent cross-device
+  // behavior. The generated static files live in /public/ and include multiple
+  // sizes and a multi-resolution favicon.ico.
   return {
-    title: "Bio Link",
-    description: "Personal Bio Link Page",
+    title: "Reflection Photography",
+    description: "Reflection Photography - Bio Link",
+    icons: {
+      icon: '/favicon-32x32.png',
+      shortcut: '/favicon-16x16.png',
+      apple: '/favicon-180x180.png',
+    },
   }
 }
 
@@ -43,11 +30,38 @@ export default async function HomePage() {
     console.log("[v0] Attempting to connect to Supabase...")
 
     // Check if profile is setup
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("is_setup", true)
-      .single()
+    const redis = getRedisClient()
+    const profileCacheKey = 'profile:setup'
+    let profile: any = null
+    let profileError: any = null
+
+    if (redis) {
+      try {
+        const cached = await redis.get(profileCacheKey)
+        if (cached) {
+          profile = JSON.parse(cached)
+        }
+      } catch (e) {
+        console.warn('[v0] Redis read failed for profile cache', e)
+      }
+    }
+
+    if (!profile) {
+      const result = await timeAsync('supabase:profiles_check_setup', async () =>
+        supabase.from("profiles").select("*").eq("is_setup", true).single()
+      )
+      profile = result.data
+      profileError = result.error
+
+      if (redis && profile) {
+        try {
+          // cache for short period (30s)
+          await redis.set(profileCacheKey, JSON.stringify(profile), 'EX', 30)
+        } catch (e) {
+          console.warn('[v0] Redis write failed for profile cache', e)
+        }
+      }
+    }
 
     console.log("[v0] Profile query result:", { profile, profileError })
 
@@ -57,13 +71,43 @@ export default async function HomePage() {
       redirect("/login")
     }
 
-    // Get active links ordered by order_index
-    const { data: links, error: linksError } = await supabase
-      .from("links")
-      .select("*")
-      .eq("profile_id", profile.id)
-      .eq("is_active", true)
-      .order("order_index")
+  // Get active links ordered by order_index — select only required columns to reduce payload and SSR time
+  const linksCacheKey = `links:active`
+    let links: any = null
+    let linksError: any = null
+
+    if (redis) {
+      try {
+        const cached = await redis.get(linksCacheKey)
+        if (cached) links = JSON.parse(cached)
+      } catch (e) {
+        console.warn('[v0] Redis read failed for links cache', e)
+      }
+    }
+
+    if (!links) {
+      const result = await timeAsync('supabase:links_active', async () =>
+        supabase
+          .from("links")
+          // include `category` so the client can group links into main/location/social
+          .select(
+            "id,title,url,icon,background_color_light,text_color_light,background_image,opacity,order_index,is_active,category"
+          )
+          .eq("is_active", true)
+          .order("order_index")
+      )
+      links = result.data
+      linksError = result.error
+
+      if (redis && links) {
+        try {
+          // cache for short period (30s)
+          await redis.set(linksCacheKey, JSON.stringify(links), 'EX', 30)
+        } catch (e) {
+          console.warn('[v0] Redis write failed for links cache', e)
+        }
+      }
+    }
 
     console.log("[v0] Links query result:", { links, linksError })
 
@@ -95,12 +139,7 @@ function DemoPage() {
             </p>
           </div>
 
-          <a
-            href="/login"
-            className="block w-full p-3 bg-mono-700 hover:bg-mono-600 text-mono-100 rounded-lg transition-colors"
-          >
-            Admin Setup
-          </a>
+          {/* Admin Setup link removed; access the admin login by clicking 8 times on the page background. */}
         </div>
       </div>
     </div>
