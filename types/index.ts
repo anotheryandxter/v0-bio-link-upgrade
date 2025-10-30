@@ -25,6 +25,9 @@ export interface Link {
   profile_id?: string
   title: string
   url: string
+  place_id?: string | null
+  lat?: string | number | null
+  lng?: string | number | null
   icon: string
   background_color_light: string
   background_color_dark: string

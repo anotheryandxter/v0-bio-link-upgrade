@@ -77,7 +77,7 @@ module.exports = async (req, res) => {
       // Strip data URI prefix if present
       const base64 = data.replace(/^data:[^;]+;base64,/, '')
       const buffer = Buffer.from(base64, 'base64')
-      const bucket = (b && String(b)) || 'public'
+  const bucket = (b && String(b)) || process.env.SUPABASE_STORAGE_BUCKET || 'public'
       const baseName = `${Date.now()}-${String(filename).replace(/[^a-zA-Z0-9.-]/g, '')}`
 
       // Cloudinary supports base64/data-uri uploads directly
@@ -163,7 +163,7 @@ module.exports = async (req, res) => {
     try {
       const buffer = fs.readFileSync(inputPath)
 
-      const bucket = (fields.bucket && String(fields.bucket)) || 'public'
+  const bucket = (fields.bucket && String(fields.bucket)) || process.env.SUPABASE_STORAGE_BUCKET || 'public'
       const baseName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '')}`
 
       // If Cloudinary is configured, prefer uploading there and returning transform URLs

@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useState } from "react"
 import type { Link as LinkType } from "@/types"
 
 interface MapCardProps {
@@ -36,27 +36,57 @@ export default function MapCard({ link }: MapCardProps) {
     }
   }
 
-  const { lat, lng, placeId } = extractLocation()
+  const { lat: initialLat, lng: initialLng, placeId } = extractLocation()
 
-  // Use server-side proxy to avoid exposing key
-  const buildProxyUrl = (): string | null => {
-    // Proxy endpoint we added: /api/maps/static
-    const base = "/api/maps/static"
-    const params = new URLSearchParams()
-    if (lat && lng) {
-      params.set("center", `${lat},${lng}`)
-      params.set("markers", `${lat},${lng}`)
-    } else if (placeId) {
-      // Use place_id marker form
-      params.set("markers", `place_id:${placeId}`)
+  // Prefer structured location fields if present on the link object
+  const linkLat = (link as any).lat || initialLat
+  const linkLng = (link as any).lng || initialLng
+
+  const [resolvedCoords, setResolvedCoords] = useState<{ lat: string; lng: string } | null>(
+    initialLat && initialLng ? { lat: initialLat, lng: initialLng } : null,
+  )
+  const [isResolving, setIsResolving] = useState(false)
+
+  // If we have no coords, try to resolve by title (Nominatim) and cache the result server-side
+  useEffect(() => {
+    let mounted = true
+    const resolve = async () => {
+      if (resolvedCoords) return
+      if (linkLat && linkLng) return
+      if (!link?.title) return
+      setIsResolving(true)
+      try {
+        const titleRsp = await fetch(`/api/maps/resolve?title=${encodeURIComponent(link.title)}`)
+        if (titleRsp.ok) {
+          const j = await titleRsp.json()
+          if (j?.lat && j?.lng && mounted) setResolvedCoords({ lat: String(j.lat), lng: String(j.lng) })
+        }
+      } catch (e) {
+        // swallow
+      } finally {
+        if (mounted) setIsResolving(false)
+      }
     }
-    params.set("size", "640x240")
-    params.set("scale", "2")
+    void resolve()
+    return () => {
+      mounted = false
+    }
+  }, [resolvedCoords, link?.title, linkLat, linkLng])
+
+  // If the link already has a stored background image, prefer that so public
+  // visitors don't trigger the dynamic static map proxy. Only build a
+  // server-proxied static map when there is no stored `background_image`.
+  const buildProxyMapUrl = (lat: string, lng: string) => {
+    const params = new URLSearchParams()
+    params.set("center", `${lat},${lng}`)
     params.set("zoom", "15")
-    return `${base}?${params.toString()}`
+    params.set("size", "640x240")
+    return `/api/maps/static?${params.toString()}`
   }
 
-  const staticMapUrl = buildProxyUrl()
+  const staticMapUrl = !link.background_image
+    ? (linkLat && linkLng && buildProxyMapUrl(String(linkLat), String(linkLng))) || (resolvedCoords ? buildProxyMapUrl(resolvedCoords.lat, resolvedCoords.lng) : null)
+    : null
 
   return (
     <div
@@ -68,15 +98,13 @@ export default function MapCard({ link }: MapCardProps) {
           .toString(16)
           .padStart(2, "0")}`,
         color: link.text_color_light,
+  backgroundImage: link.background_image ? `url(${link.background_image})` : staticMapUrl ? `url(${staticMapUrl})` : undefined,
+  backgroundSize: link.background_image || staticMapUrl ? "cover" : undefined,
+  backgroundPosition: link.background_image || staticMapUrl ? "center" : undefined,
       }}
     >
-      {/* Static preview (if API key present) */}
-      {staticMapUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={staticMapUrl} alt={`${link.title} map preview`} className="w-full h-36 object-cover" />
-      ) : null}
 
-      <div className="p-4">
+      <div className="p-4 bg-gradient-to-t from-black/40 to-transparent">
         <div className="flex items-center gap-3">
           <div className="bg-white/10 rounded-full w-12 h-12 flex items-center justify-center">
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden>

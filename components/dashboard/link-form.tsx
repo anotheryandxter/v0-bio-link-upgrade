@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -72,6 +72,58 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
   const [error, setError] = useState("")
   const supabase = createClient()
 
+  // Preview state used to show the static map preview in the form before saving
+  const [previewCoords, setPreviewCoords] = useState<{ lat: string; lng: string } | null>(
+    (placeId || (lat && lng)) ? (lat && lng ? { lat, lng } : null) : null,
+  )
+  const [isPreviewResolving, setIsPreviewResolving] = useState(false)
+
+  // Try to resolve preview coords if we don't have structured data yet.
+  useEffect(() => {
+    let mounted = true
+    // If we have explicit lat/lng use them for preview
+    if (lat && lng) {
+      setPreviewCoords({ lat, lng })
+      return
+    }
+    // If we have a placeId we rely on the static API's ability to resolve it server-side
+    if (placeId) {
+      setPreviewCoords(null)
+      return
+    }
+
+    // Otherwise, attempt to resolve from the provided URL so admins can preview
+    if (formData.url) {
+      setIsPreviewResolving(true)
+      const resolver = async () => {
+        try {
+          const rsp = await fetch(`/api/maps/resolve?url=${encodeURIComponent(formData.url)}`)
+          if (!mounted) return
+          if (rsp.ok) {
+            const j = await rsp.json()
+            if (j?.lat && j?.lng) {
+              setPreviewCoords({ lat: String(j.lat), lng: String(j.lng) })
+              return
+            }
+          }
+          // no coords found
+          setPreviewCoords(null)
+        } catch (e) {
+          if (mounted) setPreviewCoords(null)
+        } finally {
+          if (mounted) setIsPreviewResolving(false)
+        }
+      }
+      void resolver()
+    } else {
+      setPreviewCoords(null)
+    }
+
+    return () => {
+      mounted = false
+    }
+  }, [placeId, lat, lng, formData.url])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -90,41 +142,215 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
             `${lat},${lng}`,
           )}&travelmode=driving`
         }
+
+        // If we don't have structured location data yet, try to resolve it from the URL
+        // (useful when user pasted a short/redirecting maps URL). Don't block save on
+        // resolver failure — we'll still save the synthesized URL.
+        const needsResolve = !placeId && (!lat || !lng) && formData.url
+        if (needsResolve) {
+          try {
+            const resolverUrl = `/api/maps/resolve?url=${encodeURIComponent(formData.url)}`
+            const r = await fetch(resolverUrl)
+            if (r.ok) {
+              const json = await r.json()
+              if (json.place_id) {
+                setPlaceId(json.place_id)
+              }
+              if (json.lat && json.lng) {
+                setLat(String(json.lat))
+                setLng(String(json.lng))
+              }
+            }
+          } catch (err) {
+            // Non-fatal: resolver failed, proceed to save the URL-only link
+            // We don't set a user-visible error here to avoid blocking saves.
+            console.debug("maps resolver failed", err)
+          }
+        }
       }
 
-      if (link) {
+  if (link) {
         // Update existing link
+        const payload: any = {
+          ...formData,
+          updated_at: new Date().toISOString(),
+        }
+
+        if (formData.category === "location") {
+          payload.place_id = placeId || null
+          payload.lat = lat ? Number.parseFloat(lat) : null
+          payload.lng = lng ? Number.parseFloat(lng) : null
+          // If we have structured location data, prefer server-proxied static map
+          // over a manually uploaded background image. Clear it so the MapCard
+          // will automatically use the static preview.
+          if (placeId || (lat && lng)) {
+            payload.background_image = null
+          }
+        } else {
+          payload.place_id = null
+          payload.lat = null
+          payload.lng = null
+        }
+
         const { data, error } = await supabase
           .from("links")
-          .update({
-            ...formData,
-            updated_at: new Date().toISOString(),
-          })
+          .update(payload)
           .eq("id", link.id)
           .select()
           .single()
-
         if (error) {
+          // Handle case where the DB schema may not include the new location
+          // columns (lat/lng/place_id). Retry without those fields if the
+          // PostgREST/schema cache complains about missing columns.
+          const msg = error.message || ""
+          if (msg.includes("Could not find the 'lat' column") || msg.includes("Could not find the 'place_id' column") || msg.includes("schema cache")) {
+            try {
+              const retryPayload = { ...payload }
+              delete retryPayload.lat
+              delete retryPayload.lng
+              delete retryPayload.place_id
+              const { data: rdata, error: rerr } = await supabase.from("links").update(retryPayload).eq("id", link.id).select().single()
+              if (rerr) {
+                setError("Error updating link (retry): " + rerr.message)
+                return
+              }
+              onSuccess(rdata)
+              return
+            } catch (e: any) {
+              setError("Error updating link after retry: " + (e?.message || e))
+              return
+            }
+          }
+
           setError("Error updating link: " + error.message)
           return
+        }
+
+        // Ensure server-side sync of place_id <-> lat/lng so DB stays canonical.
+        if (data && formData.category === "location") {
+          try {
+            const syncRsp = await fetch(`/api/maps/sync`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: data.id }),
+            })
+            let synced = data
+            if (syncRsp.ok) {
+              try {
+                synced = await syncRsp.json()
+              } catch (_) {
+                // leave synced as the saved data
+              }
+            }
+
+            // After syncing coordinates, generate and store a static map image
+            try {
+              const gen = await fetch(`/api/maps/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: synced.id }),
+              })
+              if (gen.ok) {
+                const updated = await gen.json()
+                onSuccess(updated)
+                return
+              }
+            } catch (e) {
+              // ignore generation failures and fall back to synced
+            }
+
+            onSuccess(synced)
+            return
+          } catch (e) {
+            // ignore sync failures and fall back to returning the saved data
+          }
         }
 
         onSuccess(data)
       } else {
         // Create new link
+        const payload: any = {
+          ...formData,
+          profile_id: profileId,
+          is_active: true,
+        }
+
+        if (formData.category === "location") {
+          payload.place_id = placeId || null
+          payload.lat = lat ? Number.parseFloat(lat) : null
+          payload.lng = lng ? Number.parseFloat(lng) : null
+          // Clear any manually uploaded background image when we have structured
+          // location data so the card uses the server-proxied static map.
+          if (placeId || (lat && lng)) payload.background_image = null
+        }
+
         const { data, error } = await supabase
           .from("links")
-          .insert({
-            ...formData,
-            profile_id: profileId,
-            is_active: true,
-          })
+          .insert(payload)
           .select()
           .single()
-
         if (error) {
+          const msg = error.message || ""
+          if (msg.includes("Could not find the 'lat' column") || msg.includes("Could not find the 'place_id' column") || msg.includes("schema cache")) {
+            try {
+              const retryPayload = { ...payload }
+              delete retryPayload.lat
+              delete retryPayload.lng
+              delete retryPayload.place_id
+              const { data: rdata, error: rerr } = await supabase.from("links").insert(retryPayload).select().single()
+              if (rerr) {
+                setError("Error creating link (retry): " + rerr.message)
+                return
+              }
+              onSuccess(rdata)
+              return
+            } catch (e: any) {
+              setError("Error creating link after retry: " + (e?.message || e))
+              return
+            }
+          }
+
           setError("Error creating link: " + error.message)
           return
+        }
+
+        // After create, attempt server-side sync so place_id/coords are stored
+        if (data && formData.category === "location") {
+          try {
+            const syncRsp = await fetch(`/api/maps/sync`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: data.id }),
+            })
+            let synced = data
+            if (syncRsp.ok) {
+              try {
+                synced = await syncRsp.json()
+              } catch (_) {}
+            }
+
+            // Generate and store static map image for the link so visitors don't need
+            // to fetch dynamic static maps per request.
+            try {
+              const gen = await fetch(`/api/maps/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: synced.id }),
+              })
+              if (gen.ok) {
+                const updated = await gen.json()
+                onSuccess(updated)
+                return
+              }
+            } catch (e) {
+              // ignore generation failure
+            }
+
+            onSuccess(synced)
+            return
+          } catch (e) {
+            // ignore and fall back
+          }
         }
 
         onSuccess(data)
@@ -197,13 +423,24 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
             </Tabs>
           </div>
 
-          <ImageUpload
-            label="Background Image (Optional)"
-            value={formData.background_image}
-            onChange={(value) => setFormData({ ...formData, background_image: value })}
-            accept="image/*"
-            maxSize={5}
-          />
+          {/* If this is a location link and we already have structured location data
+              (place ID or lat/lng), prefer the server-proxied static map as the
+              background. Hide the manual upload to avoid confusion. */}
+          {(formData.category === "location" && (placeId || (lat && lng))) ? (
+            <div className="p-3 rounded-md bg-yellow-50 text-sm text-yellow-900">
+              Static map preview will be used automatically as the card background because this is a
+              location link with a place ID or coordinates. To use a custom image instead, clear the
+              place ID / coordinates or change the category.
+            </div>
+          ) : (
+            <ImageUpload
+              label="Background Image (Optional)"
+              value={formData.background_image}
+              onChange={(value) => setFormData({ ...formData, background_image: value })}
+              accept="image/*"
+              maxSize={5}
+            />
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -266,6 +503,27 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
               <p className="text-sm text-muted-foreground">
                 When saved, the form will generate a Google Maps directions link automatically. Clicking the card will open directions.
               </p>
+              {/* Static map preview: show the server-proxied image for the current placeId or coords.
+                  If we don't yet have coords but there is a URL, the effect above will attempt to
+                  resolve the URL so admins can preview before saving. */}
+              <div className="mt-3">
+                {isPreviewResolving && <div className="text-xs text-muted-foreground">Resolving location for preview…</div>}
+                {previewCoords ? (
+                  <img
+                    src={`/api/maps/static?center=${encodeURIComponent(previewCoords.lat + "," + previewCoords.lng)}&zoom=15&size=640x240`}
+                    alt="Static map preview"
+                    className="w-full rounded-md border border-white/10"
+                  />
+                ) : placeId ? (
+                  <img
+                    src={`/api/maps/static?place_id=${encodeURIComponent(placeId)}&zoom=15&size=640x240`}
+                    alt="Static map preview (place)"
+                    className="w-full rounded-md border border-white/10"
+                  />
+                ) : (
+                  <div className="text-sm text-muted-foreground">No preview available until you enter a Place ID, coordinates, or save the link.</div>
+                )}
+              </div>
             </div>
           )}
 
