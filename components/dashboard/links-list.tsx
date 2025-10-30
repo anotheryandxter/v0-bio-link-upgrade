@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import type { Link } from "@/types"
 import { usePathname } from "next/navigation"
@@ -16,6 +17,76 @@ interface LinksListProps {
   onFormSuccess: (link: Link) => void
   onFormCancel: () => void
   isLoading: boolean
+}
+
+function RegenerateButton({ linkId, disabled, onSuccess }: { linkId: string; disabled?: boolean; onSuccess: (updated: Link) => void }) {
+  const [loading, setLoading] = useState(false)
+
+  const handleClick = async () => {
+    if (loading || disabled) return
+    if (!confirm('Generate and store static map image for this link?')) return
+    setLoading(true)
+    try {
+      const rsp = await fetch('/api/maps/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: linkId }),
+      })
+      if (!rsp.ok) {
+        const txt = await rsp.text()
+        alert('Failed to generate map image: ' + txt)
+        return
+      }
+      const updated = await rsp.json()
+      onSuccess(updated)
+    } catch (e: any) {
+      alert('Error generating map image: ' + (e?.message || e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Button variant="outline" size="sm" onClick={handleClick} disabled={loading || disabled}>
+      <i className="fas fa-sync-alt mr-1" />
+      {loading ? 'Generating...' : 'Regenerate'}
+    </Button>
+  )
+}
+
+function ForceRegenerateButton({ linkId, disabled, onSuccess }: { linkId: string; disabled?: boolean; onSuccess: (updated: Link) => void }) {
+  const [loading, setLoading] = useState(false)
+
+  const handleClick = async () => {
+    if (loading || disabled) return
+    if (!confirm('Force regenerate and overwrite the stored static map image for this link? This will replace the existing image.')) return
+    setLoading(true)
+    try {
+      const rsp = await fetch('/api/maps/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: linkId, force: true }),
+      })
+      if (!rsp.ok) {
+        const txt = await rsp.text()
+        alert('Failed to force-generate map image: ' + txt)
+        return
+      }
+      const updated = await rsp.json()
+      onSuccess(updated)
+    } catch (e: any) {
+      alert('Error force-generating map image: ' + (e?.message || e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Button variant="destructive" size="sm" onClick={handleClick} disabled={loading || disabled}>
+      <i className="fas fa-redo-alt mr-1" />
+      {loading ? 'Forcing...' : 'Force regenerate'}
+    </Button>
+  )
 }
 
 export function LinksList({ profileId, links, editingLink, onEdit, onDelete, onToggleActive, onFormSuccess, onFormCancel, isLoading }: LinksListProps) {
@@ -99,6 +170,15 @@ export function LinksList({ profileId, links, editingLink, onEdit, onDelete, onT
                   <i className="fas fa-chart-bar mr-1" />
                   Analytics
                 </Button>
+              )}
+              {/* Regenerate stored static map image for location links */}
+              {link.category === 'location' && (
+                <div className="flex items-center gap-2">
+                  <RegenerateButton linkId={link.id} disabled={isLoading} onSuccess={(updated) => onFormSuccess(updated)} />
+                  {link.background_image && (
+                    <ForceRegenerateButton linkId={link.id} disabled={isLoading} onSuccess={(updated) => onFormSuccess(updated)} />
+                  )}
+                </div>
               )}
               <Button variant="outline" size="sm" onClick={() => onEdit(link)} disabled={isLoading}>
                 <i className="fas fa-edit mr-1" />
