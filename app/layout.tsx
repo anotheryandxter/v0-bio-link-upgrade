@@ -3,6 +3,11 @@ import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Suspense } from "react"
+// Vercel Speed Insights: lightweight integration to surface Core Web Vitals
+// and lab field data for the current page. Add your token as
+// VERCEL_SPEED_INSIGHTS_TOKEN or NEXT_PUBLIC_VERCEL_SPEED_INSIGHTS_TOKEN in
+// your environment if required by your setup.
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -94,6 +99,26 @@ export default function RootLayout({
           }}
         />
         {/* Vercel Analytics removed — no analytics script will be injected here. */}
+        {/* Vercel Speed Insights (opt-in) */}
+        {/*
+          Render SpeedInsights only when explicitly enabled via env vars.
+          Set one of the following in your environment to enable:
+            - NEXT_PUBLIC_ENABLE_SPEED_INSIGHTS=1            (client-safe flag)
+            - NEXT_PUBLIC_VERCEL_SPEED_INSIGHTS_TOKEN=...    (public token)
+            - VERCEL_SPEED_INSIGHTS_TOKEN=...               (server-only token)
+
+          If you don't have or don't want to expose a token (common on free
+          tier), enable the flag locally (NEXT_PUBLIC_ENABLE_SPEED_INSIGHTS=1)
+          for development only. By default the panel is disabled in production
+          unless a token is provided.
+        */}
+        {(
+          process.env.NEXT_PUBLIC_ENABLE_SPEED_INSIGHTS === '1' ||
+          Boolean(process.env.NEXT_PUBLIC_VERCEL_SPEED_INSIGHTS_TOKEN) ||
+          Boolean(process.env.VERCEL_SPEED_INSIGHTS_TOKEN)
+        ) && (
+          <SpeedInsights />
+        )}
       </body>
     </html>
   )
