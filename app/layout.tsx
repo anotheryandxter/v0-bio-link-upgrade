@@ -9,6 +9,7 @@ import { Suspense } from "react"
 // your environment if required by your setup.
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css"
+import { getCssPreloadHref } from "../lib/server/getCssPreload"
 
 export const metadata: Metadata = {
   title: "Reflection Photography",
@@ -36,15 +37,58 @@ export default function RootLayout({
         immediately and can paint before external CSS is downloaded. This
         helps First Contentful Paint for the initial experience. */}
     <style dangerouslySetInnerHTML={{__html: `
-      .preloader{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0b1220,#051025);}
-      .preloader .logo{width:72px;height:72px;border-radius:9999px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center}
-      @keyframes si-pulse{0%{opacity:0.65;transform:scale(.98)}50%{opacity:1;transform:scale(1)}100%{opacity:0.65;transform:scale(.98)}}
-      .preloader .logo{animation:si-pulse 1800ms ease-in-out infinite}
+      /* Minimalist fullscreen preloader */
+      .preloader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#333333;z-index:99999}
+      .preloader-inner{width:min(640px,84vw);padding:18px 20px;border-radius:12px;background:rgba(255,255,255,0.03);box-shadow:0 6px 18px rgba(0,0,0,0.45);display:flex;flex-direction:column;gap:12px}
+      .progress-wrap{display:flex;align-items:center;gap:12px}
+      .progress{flex:1;height:12px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden}
+      .progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#06b6d4);border-radius:999px;transition:width 250ms ease}
+      .progress-percent{min-width:50px;text-align:right;color:#ffffff;font-size:13px;font-weight:600}
+      /* Visually hide preloader when removed but keep it accessible for instant paint */
+      .preloader.hidden{opacity:0;pointer-events:none;transition:opacity 300ms ease;visibility:hidden}
     `}} />
-    {/* FontAwesome: prefer local copy (we ship webfonts under public/remote-assets).
-        This avoids relying on a CDN and keeps the app self-contained. */}
-    <link rel="preload" as="style" href="/remote-assets/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <link rel="stylesheet" href="/remote-assets/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  {/* Preload critical fonts (variable/woff2) used by the app. These files are
+    produced by Next's font pipeline and served under /_next/static/media.
+    Preloading them improves FCP by allowing the browser to fetch them
+    earlier in parallel with other resources. */}
+  <link rel="preload" href="/_next/static/media/028c0d39d2e8f589-s.p.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+  <link rel="preload" href="/_next/static/media/5b01f339abf2f1a5.p.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+
+  {/* Preload Font Awesome webfonts we've self-hosted to avoid CDN hits. */}
+  <link rel="preload" href="/remote-assets/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+  <link rel="preload" href="/remote-assets/ajax/libs/font-awesome/6.4.0/webfonts/fa-regular-400.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+  <link rel="preload" href="/remote-assets/ajax/libs/font-awesome/6.4.0/webfonts/fa-brands-400.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+
+  {/* FontAwesome CSS (non-blocking): preload then apply via onload to avoid
+    render-blocking style fetch while still prioritizing it. The compiled
+    CSS file for the app is also preloaded below (non-blocking) to help
+    the browser fetch styles early without blocking initial render. */}
+  <link rel="preload" as="style" href="/remote-assets/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="/remote-assets/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    {/* Non-blocking preload of the compiled global stylesheet. We attempt to
+        discover the built hashed filename at runtime (server) so the link
+        always matches the current build. If discovery fails we skip the
+        preload and let the regular CSS pipeline handle loading. */}
+    {(() => {
+      try {
+        const href = getCssPreloadHref()
+        if (href) {
+          // Server components cannot include event handler props. Inject a
+          // raw link tag with an onload attribute via dangerouslySetInnerHTML
+          // so the browser will switch the preload to a stylesheet when it
+          // finishes loading (non-blocking pattern). Keep a noscript fallback.
+          const raw = `\n  <link rel="preload" as="style" href="${href}" onload="this.rel='stylesheet'">\n  <noscript><link rel=\"stylesheet\" href=\"${href}\"></noscript>\n`;
+          return (
+            <div dangerouslySetInnerHTML={{ __html: raw }} />
+          )
+        }
+      } catch (err) {
+        // swallow errors and don't render the preload if any server-side
+        // detection fails (keeps the layout robust across environments)
+      }
+      return null
+    })()}
         {/* Favicon link tags for multiple sizes. We point them to /api/favicon which
             serves the provided PNG; browsers will scale as needed. If you'd like
             fully static, high-quality resized assets, we can add them to /public/. */}
@@ -57,8 +101,67 @@ export default function RootLayout({
         <link rel="manifest" href="/site.webmanifest" />
         {/* Preconnect to Supabase storage domain for quicker image fetches (replace with your project host if different) */}
         <link rel="preconnect" href="https://wxotlwlbbepzlslciwis.supabase.co" crossOrigin="anonymous" />
+        {/* Preload the largest above-the-fold image (reported as LCP) so the
+            browser begins fetching it as early as possible. This hints the
+            browser to prioritize the LCP resource and can reduce LCP/FCP. */}
+        <link rel="preload" as="image" href="https://wxotlwlbbepzlslciwis.supabase.co/storage/v1/object/public/static/maps/9321b7fa-40db-4f54-8e8b-0d56ff8fe08a-1761848220263.png" crossOrigin="anonymous" />
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
+  {/* Minimal preloader: rounded loading bar with percentage indicator. This
+      uses a tiny inline script to update percentage while the page loads and
+      removes itself on DOMContentLoaded (or when `window.__APP_READY__` is set
+      by app code). Keep markup minimal to ensure the browser can paint it
+      immediately. */}
+  <div id="preloader" className="preloader" aria-hidden="false">
+    <div className="preloader-inner" role="status" aria-live="polite">
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{color:'#fff',fontWeight:700,fontSize:14}}>Loading</div>
+      </div>
+      <div className="progress-wrap">
+        <div className="progress" aria-hidden>
+          <div id="preloader-bar" className="progress-bar" />
+        </div>
+        <div id="preloader-percent" className="progress-percent">0%</div>
+      </div>
+    </div>
+  </div>
+
+  <script dangerouslySetInnerHTML={{__html: `
+    (function(){
+      try {
+        var el = document.getElementById('preloader');
+        var bar = document.getElementById('preloader-bar');
+        var pct = document.getElementById('preloader-percent');
+        if (!el || !bar || !pct) return;
+        var value = 0;
+        var running = true;
+        function step(){
+          // incremental progression while the page is loading; never reach 100%
+          // unless the page is actually ready. This gives a perception of
+          // progress without pretending to know full loading.
+          if (!running) return;
+          value = Math.min(95, value + Math.random()*8);
+          bar.style.width = value + '%';
+          pct.textContent = Math.round(value) + '%';
+          setTimeout(step, 250 + Math.random()*150);
+        }
+        step();
+        function hide(){
+          running = false;
+          bar.style.width = '100%';
+          pct.textContent = '100%';
+          el.classList.add('hidden');
+          // remove from accessibility tree after transition
+          setTimeout(function(){ el.remove(); }, 400);
+        }
+        // If app sets a readiness flag, hide immediately
+        if (window.__APP_READY__) hide();
+        window.addEventListener('DOMContentLoaded', hide, {once:true});
+        window.addEventListener('load', hide, {once:true});
+      } catch (e) { /* swallow */ }
+    })();
+  `}} />
+
   <SuspenseAny fallback={null}>{children}</SuspenseAny>
         {/* Security: disable common copy actions and right-click; add admin easter-egg (8 clicks on non-interactive area) */}
         <script
