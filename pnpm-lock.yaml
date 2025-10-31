@@ -99,7 +99,7 @@ importers:
         specifier: latest
         version: 2.57.4
       '@vercel/speed-insights':
-        specifier: latest
+        specifier: ^1.2.0
         version: 1.2.0(next@14.2.16(@playwright/test@1.56.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)
       autoprefixer:
         specifier: ^10.4.20
