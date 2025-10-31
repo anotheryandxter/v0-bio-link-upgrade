@@ -198,18 +198,36 @@ export default function RootLayout({
           window.addEventListener('load', function(){ setDone('dom'); }, {once:true});
         }
 
+        // Auto-progress: start at a small visible value and slowly approach 90%
+        var autoValue = 5;
+        var autoInterval = setInterval(function(){
+          // current visual percent = sum(done parts)
+          var current = 0;
+          for (var kk in parts) if (done[kk]) current += parts[kk];
+          // if parts already reached high value, stop auto stepping
+          if (current >= 90) { clearInterval(autoInterval); return; }
+          autoValue = Math.min(90, autoValue + (Math.random()*6));
+          // Visual combine: take max of computed parts and autoValue
+          var visual = Math.max(current, Math.round(autoValue));
+          bar.style.width = visual + '%';
+          pct.textContent = visual + '%';
+        }, 300);
+
         // If app sets a readiness flag, immediately set all parts done
         if (window.__APP_READY__) {
           for (var k in done) done[k] = true; update();
         }
 
         // Timeout fallback to avoid stuck preloader
-        setTimeout(function(){
+        var timeoutId = setTimeout(function(){
           for (var k in done) done[k] = true; update();
-        }, 10000);
+          clearInterval(autoInterval);
+        }, 15000);
 
         function hide(){
           try {
+            clearInterval(autoInterval);
+            clearTimeout(timeoutId);
             el.classList.add('hidden');
             setTimeout(function(){ el.remove(); }, 400);
           } catch (e) { /* noop */ }
