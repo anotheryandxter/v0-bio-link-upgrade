@@ -25,12 +25,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  // Use a streaming / suspense approach so the server can send a lightweight
-  // preloader immediately while the heavier profile/links fetch continues.
-  // The actual data fetch and potential redirect live in the inner async
-  // component below so Next can stream the fallback quickly to the client.
+  // We no longer render a server-side visual preloader here. The client-side
+  // `components/preloader.tsx` handles a consistent loading bar UI during
+  // hydration and resource loading. Use a null fallback so streaming still
+  // works but no duplicate preload UI is sent from the server.
   return (
-    <Suspense fallback={<Preloader />}>
+    <Suspense fallback={null}>
       <DatafulHome />
     </Suspense>
   )
@@ -132,21 +132,7 @@ async function DatafulHome() {
   }
 }
 
-function Preloader() {
-  return (
-    <div className="preloader">
-      <div style={{textAlign: 'center'}}>
-        <div className="logo" style={{width:72,height:72,borderRadius:9999,background:'rgba(255,255,255,0.06)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto'}}>
-          <span style={{fontWeight:700,color:'#fff'}}>RP</span>
-        </div>
-        <div style={{marginTop:16,color:'#e6eef8',opacity:0.95}}>
-          <div style={{fontSize:18,fontWeight:700}}>Reflection Photography</div>
-          <div style={{fontSize:13,opacity:0.8,marginTop:6}}>Loading your page…</div>
-        </div>
-      </div>
-    </div>
-  )
-}
+// Server-side preloader removed in favor of client-side Preloader component
 
 function DemoPage() {
   return (
