@@ -39,15 +39,59 @@ export default function RootLayout({
         immediately and can paint before external CSS is downloaded. This
         helps First Contentful Paint for the initial experience. */}
     <style dangerouslySetInnerHTML={{__html: `
-      /* Minimalist fullscreen preloader */
+      /* Minimalist fullscreen preloader (client) */
       .preloader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#333333;z-index:99999}
       .preloader-inner{width:min(640px,84vw);padding:18px 20px;border-radius:12px;background:rgba(255,255,255,0.03);box-shadow:0 6px 18px rgba(0,0,0,0.45);display:flex;flex-direction:column;gap:12px}
       .progress-wrap{display:flex;align-items:center;gap:12px}
       .progress{flex:1;height:12px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden}
       .progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#06b6d4);border-radius:999px;transition:width 250ms ease}
       .progress-percent{min-width:50px;text-align:right;color:#ffffff;font-size:13px;font-weight:600}
-      /* Visually hide preloader when removed but keep it accessible for instant paint */
       .preloader.hidden{opacity:0;pointer-events:none;transition:opacity 300ms ease;visibility:hidden}
+
+      /* Server-side preloader styling */
+      .server-preloader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#333333;z-index:99998}
+      .server-preloader-inner{width:min(860px,88vw);padding:20px 28px;border-radius:14px;background:rgba(255,255,255,0.03);box-shadow:0 18px 40px rgba(0,0,0,0.55);display:flex;flex-direction:column;gap:14px}
+      .server-progress-wrap{display:flex;align-items:center;gap:18px}
+      .server-progress{flex:1;height:14px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden}
+      .server-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#06b6d4);border-radius:999px;transition:width 220ms linear}
+      .server-percent{min-width:44px;text-align:right;color:#ffffff;font-size:15px;font-weight:700}
+      .server-preloader.hidden{opacity:0;pointer-events:none;visibility:hidden;transition:opacity 260ms ease}
+    `}} />
+
+    {/* Server-side preloader inline script: lightweight auto-progress and hide-on-ready.
+        This runs client-side but is emitted from the server so the bar paints immediately. */}
+    <script dangerouslySetInnerHTML={{__html: `
+      (function(){
+        try {
+          var el = document.getElementById('server-preloader');
+          var bar = document.getElementById('server-preloader-bar');
+          var pct = document.getElementById('server-preloader-percent');
+          if (!el || !bar || !pct) return;
+          var value = 3;
+          bar.style.width = value + '%';
+          pct.textContent = Math.round(value) + '%';
+          var iv = setInterval(function(){
+            value = Math.min(90, value + Math.random()*6 + 1);
+            bar.style.width = Math.round(value) + '%';
+            pct.textContent = Math.round(value) + '%';
+            if (value >= 90) clearInterval(iv);
+          }, 300);
+          function finish(){
+            clearInterval(iv);
+            bar.style.width = '100%';
+            pct.textContent = '100%';
+            el.classList.add('hidden');
+            setTimeout(function(){ try{ el.remove(); }catch(e){} }, 320);
+          }
+          // Prefer explicit app readiness flag; otherwise DOM ready or load
+          if (window.__APP_READY__) { finish(); return; }
+          window.addEventListener('app-ready', finish, {once:true});
+          document.addEventListener('DOMContentLoaded', finish, {once:true});
+          window.addEventListener('load', finish, {once:true});
+          // safety timeout
+          setTimeout(finish, 15000);
+        } catch (e) { /* noop */ }
+      })();
     `}} />
   {/* Preload critical fonts (variable/woff2) used by the app. These files are
     produced by Next's font pipeline and served under /_next/static/media.
@@ -236,6 +280,23 @@ export default function RootLayout({
       } catch (e) { /* swallow */ }
     })();
   `}} />
+
+  {/* Server-rendered preloader (renders immediately for fastest paint). The
+      client Preloader will take over after hydration and emit `app-ready` to
+      remove this server preloader quickly. */}
+  <div id="server-preloader" className="server-preloader" aria-hidden="false">
+    <div className="server-preloader-inner" role="status" aria-live="polite">
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{color:'#fff',fontWeight:700,fontSize:14}}>Loading</div>
+        <div id="server-preloader-percent" className="server-percent">0%</div>
+      </div>
+      <div className="server-progress-wrap">
+        <div className="server-progress" aria-hidden>
+          <div id="server-preloader-bar" className="server-progress-bar" />
+        </div>
+      </div>
+    </div>
+  </div>
 
   <PreloaderReady />
   <Preloader />
