@@ -32,6 +32,15 @@ export default function RootLayout({
   return (
   <html lang="en" className="light">
       <head>
+    {/* Critical, minimal inline CSS for the preloader to ensure it's styled
+        immediately and can paint before external CSS is downloaded. This
+        helps First Contentful Paint for the initial experience. */}
+    <style dangerouslySetInnerHTML={{__html: `
+      .preloader{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0b1220,#051025);}
+      .preloader .logo{width:72px;height:72px;border-radius:9999px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center}
+      @keyframes si-pulse{0%{opacity:0.65;transform:scale(.98)}50%{opacity:1;transform:scale(1)}100%{opacity:0.65;transform:scale(.98)}}
+      .preloader .logo{animation:si-pulse 1800ms ease-in-out infinite}
+    `}} />
     {/* FontAwesome: prefer local copy (we ship webfonts under public/remote-assets).
         This avoids relying on a CDN and keeps the app self-contained. */}
     <link rel="preload" as="style" href="/remote-assets/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
