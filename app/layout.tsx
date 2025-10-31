@@ -133,31 +133,86 @@ export default function RootLayout({
         var bar = document.getElementById('preloader-bar');
         var pct = document.getElementById('preloader-percent');
         if (!el || !bar || !pct) return;
-        var value = 0;
-        var running = true;
-        function step(){
-          // incremental progression while the page is loading; never reach 100%
-          // unless the page is actually ready. This gives a perception of
-          // progress without pretending to know full loading.
-          if (!running) return;
-          value = Math.min(95, value + Math.random()*8);
-          bar.style.width = value + '%';
-          pct.textContent = Math.round(value) + '%';
-          setTimeout(step, 250 + Math.random()*150);
+
+        // Weighted progress parts (sum = 100)
+        var parts = { fonts: 25, css: 25, image: 40, dom: 10 };
+        var done = { fonts: false, css: false, image: false, dom: false };
+
+        function update() {
+          var sum = 0;
+          for (var k in parts) if (done[k]) sum += parts[k];
+          bar.style.width = sum + '%';
+          pct.textContent = Math.round(sum) + '%';
+          if (sum >= 100) hide();
         }
-        step();
+
+        function setDone(key){ if (!done[key]) { done[key]=true; update(); } }
+
+        // Fonts: wait for document.fonts.ready if available
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(function(){ setDone('fonts'); }).catch(function(){ setDone('fonts'); });
+        } else {
+          setDone('fonts');
+        }
+
+        // CSS: listen for the preloaded stylesheet link (as=style or rel=preload)
+        (function(){
+          try {
+            var cssLink = Array.prototype.slice.call(document.querySelectorAll('link[rel="preload"][as="style"], link[rel="stylesheet"][as="style"]'))[0];
+            if (cssLink) {
+              // if it's already loaded, mark done
+              if (cssLink.sheet || cssLink.rel === 'stylesheet') {
+                setDone('css');
+              } else {
+                cssLink.addEventListener('load', function(){ setDone('css'); }, {once:true});
+                cssLink.addEventListener('error', function(){ setDone('css'); }, {once:true});
+              }
+            } else {
+              // no discoverable CSS preload - consider it done
+              setDone('css');
+            }
+          } catch (e) { setDone('css'); }
+        })();
+
+        // Image: look for a preloaded image link and create Image() to follow progress
+        (function(){
+          try {
+            var imgLink = document.querySelector('link[rel="preload"][as="image"]');
+            if (imgLink && imgLink.href) {
+              var img = new Image();
+              img.onload = function(){ setDone('image'); };
+              img.onerror = function(){ setDone('image'); };
+              img.src = imgLink.href;
+            } else {
+              setDone('image');
+            }
+          } catch (e) { setDone('image'); }
+        })();
+
+        // DOM ready
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+          setDone('dom');
+        } else {
+          document.addEventListener('DOMContentLoaded', function(){ setDone('dom'); }, {once:true});
+          window.addEventListener('load', function(){ setDone('dom'); }, {once:true});
+        }
+
+        // If app sets a readiness flag, immediately set all parts done
+        if (window.__APP_READY__) {
+          for (var k in done) done[k] = true; update();
+        }
+
+        // Timeout fallback to avoid stuck preloader
+        setTimeout(function(){
+          for (var k in done) done[k] = true; update();
+        }, 10000);
+
         function hide(){
-          running = false;
-          bar.style.width = '100%';
-          pct.textContent = '100%';
-          el.classList.add('hidden');
-          // remove from accessibility tree after transition
-          setTimeout(function(){ el.remove(); }, 400);
+          try {
+            el.classList.add('hidden');
+            setTimeout(function(){ el.remove(); }, 400);
+          } catch (e) { /* noop */ }
         }
-        // If app sets a readiness flag, hide immediately
-        if (window.__APP_READY__) hide();
-        window.addEventListener('DOMContentLoaded', hide, {once:true});
-        window.addEventListener('load', hide, {once:true});
       } catch (e) { /* swallow */ }
     })();
   `}} />
