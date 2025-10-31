@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Suspense } from "react"
+import PreloaderReady from "../components/preloader-ready"
 // Vercel Speed Insights: lightweight integration to surface Core Web Vitals
 // and lab field data for the current page. Add your token as
 // VERCEL_SPEED_INSIGHTS_TOKEN or NEXT_PUBLIC_VERCEL_SPEED_INSIGHTS_TOKEN in
@@ -217,6 +218,7 @@ export default function RootLayout({
     })();
   `}} />
 
+  <PreloaderReady />
   <SuspenseAny fallback={null}>{children}</SuspenseAny>
         {/* Security: disable common copy actions and right-click; add admin easter-egg (8 clicks on non-interactive area) */}
         <script
