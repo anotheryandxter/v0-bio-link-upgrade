@@ -98,15 +98,15 @@ export default function Preloader() {
 
   return (
     <div style={{position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'#333333',zIndex:99999}} aria-hidden={false}>
-      <div style={{width:'min(640px,84vw)',padding:18,borderRadius:12,background:'rgba(255,255,255,0.03)',boxShadow:'0 6px 18px rgba(0,0,0,0.45)',display:'flex',flexDirection:'column',gap:12}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{width:'100%',display:'flex',flexDirection:'column',gap:8,alignItems:'center'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',maxWidth:880,padding:'0 28px',boxSizing:'border-box'}}>
           <div style={{color:'#fff',fontWeight:700,fontSize:14}}>Loading</div>
+          <div style={{minWidth:50,textAlign:'right',color:'#fff',fontSize:14,fontWeight:700}}>{percent}%</div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <div style={{flex:1,height:12,background:'rgba(255,255,255,0.08)',borderRadius:999,overflow:'hidden'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,width:'100%',maxWidth:880,padding:'0 28px',boxSizing:'border-box'}}>
+          <div style={{flex:1,height:8,background:'rgba(255,255,255,0.06)',borderRadius:999,overflow:'hidden'}}>
             <div style={{height:'100%',width:percent+'%',background:'linear-gradient(90deg,#4ade80,#06b6d4)',borderRadius:999,transition:'width 180ms linear'}} />
           </div>
-          <div style={{minWidth:50,textAlign:'right',color:'#fff',fontSize:13,fontWeight:600}}>{percent}%</div>
         </div>
       </div>
     </div>

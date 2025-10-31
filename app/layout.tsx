@@ -50,11 +50,12 @@ export default function RootLayout({
 
       /* Server-side preloader styling */
       .server-preloader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#333333;z-index:99998}
-      .server-preloader-inner{width:min(860px,88vw);padding:20px 28px;border-radius:14px;background:rgba(255,255,255,0.03);box-shadow:0 18px 40px rgba(0,0,0,0.55);display:flex;flex-direction:column;gap:14px}
-      .server-progress-wrap{display:flex;align-items:center;gap:18px}
-      .server-progress{flex:1;height:14px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden}
-      .server-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#06b6d4);border-radius:999px;transition:width 220ms linear}
-      .server-percent{min-width:44px;text-align:right;color:#ffffff;font-size:15px;font-weight:700}
+  /* Removed card styling: make the server preloader minimal and unobtrusive */
+  .server-preloader-inner{width:100%;display:flex;flex-direction:column;gap:8px;align-items:center}
+  .server-progress-wrap{display:flex;align-items:center;gap:12px;width:100%;max-width:880px;padding:0 28px;box-sizing:border-box}
+  .server-progress{flex:1;height:8px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden}
+  .server-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#06b6d4);border-radius:999px;transition:width 220ms linear}
+  .server-percent{min-width:44px;text-align:right;color:#ffffff;font-size:14px;font-weight:700}
       .server-preloader.hidden{opacity:0;pointer-events:none;visibility:hidden;transition:opacity 260ms ease}
     `}} />
 
