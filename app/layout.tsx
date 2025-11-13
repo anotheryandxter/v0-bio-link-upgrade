@@ -129,6 +129,8 @@ export default function RootLayout({
       {/* Viewport meta for correct mobile scaling and layout. Important for
         consistent mobile rendering of the preloader and to avoid unexpected
         blank/zoomed states on phones/tablets. */}
+      {/* Place the viewport inside head via a small inline link to ensure it's
+        rendered as early as possible. */}
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
   {/* Minimal preloader: rounded loading bar with percentage indicator. This
