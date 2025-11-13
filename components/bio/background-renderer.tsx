@@ -157,6 +157,10 @@ function ImageBackground({ config }: ImageBackgroundProps) {
     <div className="w-full h-full overflow-hidden relative">
       <img
         src={config.url}
+  // Mark LCP image as high priority for browsers that support it.
+  fetchPriority="high"
+        loading="eager"
+        decoding="async"
         alt="background"
         className={`w-full h-full ${objectFitClass} ${objectPositionClass}`}
         style={{
@@ -201,6 +205,9 @@ function VideoBackground({ config, videoRef }: VideoBackgroundProps) {
       <video
         ref={videoRef}
         autoPlay={config.autoplay}
+        // Prevent the browser from preloading the video frames which can
+        // delay LCP; prefer fetching the poster image first.
+        preload="none"
         loop={config.loop}
         muted={config.muted}
         playsInline

@@ -24,13 +24,65 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function HomePage() {
-  // We no longer render a server-side visual preloader here. The client-side
-  // `components/preloader.tsx` handles a consistent loading bar UI during
-  // hydration and resource loading. Use a null fallback so streaming still
-  // works but no duplicate preload UI is sent from the server.
+function ServerPreloader() {
   return (
-    <Suspense fallback={null}>
+    <>
+      <div id="server-preloader" className="server-preloader" aria-hidden="false">
+        <div className="server-preloader-inner" role="status" aria-live="polite">
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div style={{color:'#fff',fontWeight:700,fontSize:14}}>Loading</div>
+            <div id="server-preloader-percent" className="server-percent">0%</div>
+          </div>
+          <div className="server-progress-wrap">
+            <div className="server-progress" aria-hidden>
+              <div id="server-preloader-bar" className="server-progress-bar" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <script dangerouslySetInnerHTML={{__html: `
+        (function(){
+          try {
+            var el = document.getElementById('server-preloader');
+            var bar = document.getElementById('server-preloader-bar');
+            var pct = document.getElementById('server-preloader-percent');
+            if (!el || !bar || !pct) return;
+            var value = 3;
+            bar.style.width = value + '%';
+            pct.textContent = Math.round(value) + '%';
+            var iv = setInterval(function(){
+              value = Math.min(90, value + Math.random()*6 + 1);
+              bar.style.width = Math.round(value) + '%';
+              pct.textContent = Math.round(value) + '%';
+              if (value >= 90) clearInterval(iv);
+            }, 300);
+            function finish(){
+              clearInterval(iv);
+              bar.style.width = '100%';
+              pct.textContent = '100%';
+              el.classList.add('hidden');
+              setTimeout(function(){ try{ el.remove(); }catch(e){} }, 320);
+            }
+            if (window.__APP_READY__) { finish(); return; }
+            window.addEventListener('app-ready', finish, {once:true});
+            document.addEventListener('DOMContentLoaded', finish, {once:true});
+            window.addEventListener('load', finish, {once:true});
+            setTimeout(finish, 15000);
+          } catch (e) { /* noop */ }
+        })();
+      `}} />
+    </>
+  )
+}
+
+export default async function HomePage() {
+  // Render a server-side, cardless progress bar only for the main page.
+  // This is used as the Suspense fallback so the browser can paint the
+  // lightweight loading indicator immediately while the server streams
+  // the real content. We intentionally keep this markup minimal and the
+  // inline script small so it can run as soon as the HTML is parsed.
+  return (
+    <Suspense fallback={<ServerPreloader />}>
       <DatafulHome />
     </Suspense>
   )
@@ -124,6 +176,27 @@ async function DatafulHome() {
     }
 
     console.log("[v0] Links query result:", { links, linksError })
+
+    // Determine a likely LCP candidate (image poster or background image)
+    const lcpCandidate =
+      // explicit homepage image background
+      (profile.homepage_background && profile.homepage_background.type === 'image' && profile.homepage_background.image?.url)
+      // video poster on legacy background_video field
+      || profile.background_video?.poster
+      // homepage video poster
+      || (profile.homepage_background && profile.homepage_background.type === 'video' && profile.homepage_background.video?.poster)
+
+    // If we found a candidate, emit a server-side preload link so the browser
+    // prioritizes fetching it during SSR. This reduces LCP by starting the
+    // image download earlier in the navigation lifecycle.
+    if (lcpCandidate) {
+      return (
+        <>
+          <link rel="preload" as="image" href={lcpCandidate} crossOrigin="anonymous" />
+          <BioPage profile={profile} links={links || []} />
+        </>
+      )
+    }
 
     return <BioPage profile={profile} links={links || []} />
   } catch (error) {

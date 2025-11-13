@@ -56,43 +56,17 @@ export default function RootLayout({
   .server-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#06b6d4);border-radius:999px;transition:width 220ms linear}
   .server-percent{min-width:44px;text-align:right;color:#ffffff;font-size:14px;font-weight:700}
       .server-preloader.hidden{opacity:0;pointer-events:none;visibility:hidden;transition:opacity 260ms ease}
+    /* Ensure the bar shows motion even if inline JS is delayed: animate to ~90% by
+      CSS alone, then let the JS finalize to 100% when the app is ready. Honor
+      reduced-motion preferences. */
+    @keyframes server-preload-grow { from { width: 3%; } to { width: 90%; } }
+    .server-progress-bar{ animation: server-preload-grow 4s linear forwards }
+    @media (prefers-reduced-motion: reduce) { .server-progress-bar{ animation: none !important } }
     `}} />
 
-    {/* Server-side preloader inline script: lightweight auto-progress and hide-on-ready.
-        This runs client-side but is emitted from the server so the bar paints immediately. */}
-    <script dangerouslySetInnerHTML={{__html: `
-      (function(){
-        try {
-          var el = document.getElementById('server-preloader');
-          var bar = document.getElementById('server-preloader-bar');
-          var pct = document.getElementById('server-preloader-percent');
-          if (!el || !bar || !pct) return;
-          var value = 3;
-          bar.style.width = value + '%';
-          pct.textContent = Math.round(value) + '%';
-          var iv = setInterval(function(){
-            value = Math.min(90, value + Math.random()*6 + 1);
-            bar.style.width = Math.round(value) + '%';
-            pct.textContent = Math.round(value) + '%';
-            if (value >= 90) clearInterval(iv);
-          }, 300);
-          function finish(){
-            clearInterval(iv);
-            bar.style.width = '100%';
-            pct.textContent = '100%';
-            el.classList.add('hidden');
-            setTimeout(function(){ try{ el.remove(); }catch(e){} }, 320);
-          }
-          // Prefer explicit app readiness flag; otherwise DOM ready or load
-          if (window.__APP_READY__) { finish(); return; }
-          window.addEventListener('app-ready', finish, {once:true});
-          document.addEventListener('DOMContentLoaded', finish, {once:true});
-          window.addEventListener('load', finish, {once:true});
-          // safety timeout
-          setTimeout(finish, 15000);
-        } catch (e) { /* noop */ }
-      })();
-    `}} />
+    {/* server preloader behavior will be emitted only on the main page (Home).
+        The head keeps only the server-side CSS rules for the bar so it can
+        paint immediately when the main page includes the markup. */}
   {/* Preload critical fonts (variable/woff2) used by the app. These files are
     produced by Next's font pipeline and served under /_next/static/media.
     Preloading them improves FCP by allowing the browser to fetch them
@@ -152,153 +126,21 @@ export default function RootLayout({
             browser to prioritize the LCP resource and can reduce LCP/FCP. */}
         <link rel="preload" as="image" href="https://wxotlwlbbepzlslciwis.supabase.co/storage/v1/object/public/static/maps/9321b7fa-40db-4f54-8e8b-0d56ff8fe08a-1761848220263.png" crossOrigin="anonymous" />
       </head>
+      {/* Viewport meta for correct mobile scaling and layout. Important for
+        consistent mobile rendering of the preloader and to avoid unexpected
+        blank/zoomed states on phones/tablets. */}
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
   {/* Minimal preloader: rounded loading bar with percentage indicator. This
       uses a tiny inline script to update percentage while the page loads and
       removes itself on DOMContentLoaded (or when `window.__APP_READY__` is set
       by app code). Keep markup minimal to ensure the browser can paint it
       immediately. */}
-  <div id="preloader" className="preloader" aria-hidden="false">
-    <div className="preloader-inner" role="status" aria-live="polite">
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div style={{color:'#fff',fontWeight:700,fontSize:14}}>Loading</div>
-      </div>
-      <div className="progress-wrap">
-        <div className="progress" aria-hidden>
-          <div id="preloader-bar" className="progress-bar" />
-        </div>
-        <div id="preloader-percent" className="progress-percent">0%</div>
-      </div>
-    </div>
-  </div>
+  {/* No global client-side preloader here: we only show the server preloader on
+      the main page via a Suspense fallback. Removing this prevents the stuck
+      0% client preloader appearing across route transitions. */}
 
-  <script dangerouslySetInnerHTML={{__html: `
-    (function(){
-      try {
-        var el = document.getElementById('preloader');
-        var bar = document.getElementById('preloader-bar');
-        var pct = document.getElementById('preloader-percent');
-        if (!el || !bar || !pct) return;
-
-        // Weighted progress parts (sum = 100)
-        var parts = { fonts: 25, css: 25, image: 40, dom: 10 };
-        var done = { fonts: false, css: false, image: false, dom: false };
-
-        function update() {
-          var sum = 0;
-          for (var k in parts) if (done[k]) sum += parts[k];
-          bar.style.width = sum + '%';
-          pct.textContent = Math.round(sum) + '%';
-          if (sum >= 100) hide();
-        }
-
-        function setDone(key){ if (!done[key]) { done[key]=true; update(); } }
-
-        // Fonts: wait for document.fonts.ready if available
-        if (document.fonts && document.fonts.ready) {
-          document.fonts.ready.then(function(){ setDone('fonts'); }).catch(function(){ setDone('fonts'); });
-        } else {
-          setDone('fonts');
-        }
-
-        // CSS: listen for the preloaded stylesheet link (as=style or rel=preload)
-        (function(){
-          try {
-            var cssLink = Array.prototype.slice.call(document.querySelectorAll('link[rel="preload"][as="style"], link[rel="stylesheet"][as="style"]'))[0];
-            if (cssLink) {
-              // if it's already loaded, mark done
-              if (cssLink.sheet || cssLink.rel === 'stylesheet') {
-                setDone('css');
-              } else {
-                cssLink.addEventListener('load', function(){ setDone('css'); }, {once:true});
-                cssLink.addEventListener('error', function(){ setDone('css'); }, {once:true});
-              }
-            } else {
-              // no discoverable CSS preload - consider it done
-              setDone('css');
-            }
-          } catch (e) { setDone('css'); }
-        })();
-
-        // Image: look for a preloaded image link and create Image() to follow progress
-        (function(){
-          try {
-            var imgLink = document.querySelector('link[rel="preload"][as="image"]');
-            if (imgLink && imgLink.href) {
-              var img = new Image();
-              img.onload = function(){ setDone('image'); };
-              img.onerror = function(){ setDone('image'); };
-              img.src = imgLink.href;
-            } else {
-              setDone('image');
-            }
-          } catch (e) { setDone('image'); }
-        })();
-
-        // DOM ready
-        if (document.readyState === 'complete' || document.readyState === 'interactive') {
-          setDone('dom');
-        } else {
-          document.addEventListener('DOMContentLoaded', function(){ setDone('dom'); }, {once:true});
-          window.addEventListener('load', function(){ setDone('dom'); }, {once:true});
-        }
-
-        // Auto-progress: start at a small visible value and slowly approach 90%
-        var autoValue = 5;
-        var autoInterval = setInterval(function(){
-          // current visual percent = sum(done parts)
-          var current = 0;
-          for (var kk in parts) if (done[kk]) current += parts[kk];
-          // if parts already reached high value, stop auto stepping
-          if (current >= 90) { clearInterval(autoInterval); return; }
-          autoValue = Math.min(90, autoValue + (Math.random()*6));
-          // Visual combine: take max of computed parts and autoValue
-          var visual = Math.max(current, Math.round(autoValue));
-          bar.style.width = visual + '%';
-          pct.textContent = visual + '%';
-        }, 300);
-
-        // If app sets a readiness flag, immediately set all parts done
-        if (window.__APP_READY__) {
-          for (var k in done) done[k] = true; update();
-        }
-
-        // Timeout fallback to avoid stuck preloader
-        var timeoutId = setTimeout(function(){
-          for (var k in done) done[k] = true; update();
-          clearInterval(autoInterval);
-        }, 15000);
-
-        function hide(){
-          try {
-            clearInterval(autoInterval);
-            clearTimeout(timeoutId);
-            el.classList.add('hidden');
-            setTimeout(function(){ el.remove(); }, 400);
-          } catch (e) { /* noop */ }
-        }
-      } catch (e) { /* swallow */ }
-    })();
-  `}} />
-
-  {/* Server-rendered preloader (renders immediately for fastest paint). The
-      client Preloader will take over after hydration and emit `app-ready` to
-      remove this server preloader quickly. */}
-  <div id="server-preloader" className="server-preloader" aria-hidden="false">
-    <div className="server-preloader-inner" role="status" aria-live="polite">
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div style={{color:'#fff',fontWeight:700,fontSize:14}}>Loading</div>
-        <div id="server-preloader-percent" className="server-percent">0%</div>
-      </div>
-      <div className="server-progress-wrap">
-        <div className="server-progress" aria-hidden>
-          <div id="server-preloader-bar" className="server-progress-bar" />
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {/* client preloader removed; server preloader above will remain until app-ready */}
+  {/* Server preloader markup is emitted only on the main page (see `app/page.tsx`). */}
   <SuspenseAny fallback={null}>{children}</SuspenseAny>
         {/* Security: disable common copy actions and right-click; add admin easter-egg (8 clicks on non-interactive area) */}
         <script
