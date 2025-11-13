@@ -2,7 +2,8 @@
 
 import type React from "react"
 
-import { useRef } from "react"
+import { useRef, useState } from "react"
+import Image from "next/image"
 import type { BackgroundConfig } from "@/types"
 
 interface BackgroundRendererProps {
@@ -153,21 +154,48 @@ function ImageBackground({ config }: ImageBackgroundProps) {
     right: 'object-right',
   } as Record<string, string> )[config.position || 'center']
 
+  // Use Next.js Image for automatic optimization and responsive srcsets.
+  // Add a small CSS-based LQIP/shimmer while the image is loading to
+  // improve perceived LCP on slower devices.
+  const [loaded, setLoaded] = useState(false)
+
   return (
-    <div className="w-full h-full overflow-hidden relative">
-      <img
-        src={config.url}
-  // Mark LCP image as high priority for browsers that support it.
-  fetchPriority="high"
-        loading="eager"
-        decoding="async"
-        alt="background"
-        className={`w-full h-full ${objectFitClass} ${objectPositionClass}`}
-        style={{
-          opacity: config.opacity ?? 1,
-          filter: config.blur ? `blur(${config.blur}px)` : undefined,
-        }}
-      />
+    <div className="w-full h-full overflow-hidden relative bg-gray-900/20">
+      {/* LQIP placeholder: neutral SVG shimmer. Hidden after image loads. */}
+      <div
+        id="bg-lqip"
+        aria-hidden
+        className={`absolute inset-0 z-0 transition-opacity duration-300 ${loaded ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+      >
+        <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 800 600">
+          <defs>
+            <linearGradient id="g" x1="0" x2="1">
+              <stop offset="0%" stopColor="#222" stopOpacity="0.6"/>
+              <stop offset="50%" stopColor="#2a2a2a" stopOpacity="0.45"/>
+              <stop offset="100%" stopColor="#222" stopOpacity="0.6"/>
+            </linearGradient>
+          </defs>
+          <rect width="800" height="600" fill="url(#g)" />
+        </svg>
+      </div>
+      <div className="relative w-full h-full z-10">
+        {(() => {
+          const fit = (config.fit === 'stretch' ? 'fill' : config.fit) as any
+          const position = (config.position || 'center') as any
+          return (
+            <Image
+              src={config.url}
+              alt="background"
+              fill
+              priority
+              sizes="(max-width: 640px) 640px, 1200px"
+              style={{ objectFit: fit, objectPosition: position, opacity: config.opacity ?? 1 }}
+              onLoadingComplete={() => setLoaded(true)}
+              decoding="async"
+            />
+          )
+        })()}
+      </div>
     </div>
   )
 }
