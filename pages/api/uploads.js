@@ -98,26 +98,37 @@ module.exports = async (req, res) => {
         }
       }
 
-      // If sharp is available generate variants, otherwise upload original buffer
+      // If sharp is available generate AVIF + WebP + JPEG variants, otherwise upload original buffer
       if (sharp) {
         try {
           const sizes = [320, 640, 1200]
-          const uploaded = []
+          const variants = []
           for (const w of sizes) {
-            const out = await sharp(buffer).resize({ width: w }).webp({ quality: 80 }).toBuffer()
-            const pathName = `${baseName}-${w}.webp`
-            const { error: upErr } = await supabase.storage.from(bucket).upload(pathName, out, { cacheControl: 'public, max-age=31536000' })
-            if (upErr) return res.status(500).json({ error: upErr.message })
-            const { data: pub } = supabase.storage.from(bucket).getPublicUrl(pathName)
-            uploaded.push({ width: w, url: pub.publicUrl })
+            // AVIF (best modern compression)
+            const avifBuf = await sharp(buffer).resize({ width: w }).avif({ quality: 60 }).toBuffer()
+            const avifPath = `${baseName}-${w}.avif`
+            const { error: avifErr } = await supabase.storage.from(bucket).upload(avifPath, avifBuf, { cacheControl: 'public, max-age=31536000' })
+            if (avifErr) return res.status(500).json({ error: avifErr.message })
+            const { data: avifPub } = supabase.storage.from(bucket).getPublicUrl(avifPath)
+
+            // WebP (wide compatibility)
+            const webpBuf = await sharp(buffer).resize({ width: w }).webp({ quality: 80 }).toBuffer()
+            const webpPath = `${baseName}-${w}.webp`
+            const { error: webpErr } = await supabase.storage.from(bucket).upload(webpPath, webpBuf, { cacheControl: 'public, max-age=31536000' })
+            if (webpErr) return res.status(500).json({ error: webpErr.message })
+            const { data: webpPub } = supabase.storage.from(bucket).getPublicUrl(webpPath)
+
+            variants.push({ width: w, avif: avifPub.publicUrl, webp: webpPub.publicUrl })
           }
 
+          // Also upload an original-optimized JPEG (max 1200) as the most compatible fallback
           const jpegBuf = await sharp(buffer).resize({ width: 1200 }).jpeg({ quality: 85 }).toBuffer()
           const jpegPath = `${baseName}-1200.jpg`
           const { error: jpegErr } = await supabase.storage.from(bucket).upload(jpegPath, jpegBuf, { cacheControl: 'public, max-age=31536000' })
           if (jpegErr) return res.status(500).json({ error: jpegErr.message })
           const { data: jpegPub } = supabase.storage.from(bucket).getPublicUrl(jpegPath)
-          return res.json({ uploaded, jpeg: jpegPub.publicUrl })
+
+          return res.json({ variants, jpeg: jpegPub.publicUrl })
         } catch (e) {
           console.error(e)
           return res.status(500).json({ error: e.message })
@@ -185,17 +196,24 @@ module.exports = async (req, res) => {
       }
 
       if (sharp) {
-        // generate variants
+        // generate AVIF + WebP + JPEG variants
         const sizes = [320, 640, 1200]
-        const uploaded = []
+        const variants = []
 
         for (const w of sizes) {
-          const out = await sharp(buffer).resize({ width: w }).webp({ quality: 80 }).toBuffer()
-          const pathName = `${baseName}-${w}.webp`
-          const { error: upErr } = await supabase.storage.from(bucket).upload(pathName, out, { cacheControl: 'public, max-age=31536000' })
-          if (upErr) return res.status(500).json({ error: upErr.message })
-          const { data: pub } = supabase.storage.from(bucket).getPublicUrl(pathName)
-          uploaded.push({ width: w, url: pub.publicUrl })
+          const avifBuf = await sharp(buffer).resize({ width: w }).avif({ quality: 60 }).toBuffer()
+          const avifPath = `${baseName}-${w}.avif`
+          const { error: avifErr } = await supabase.storage.from(bucket).upload(avifPath, avifBuf, { cacheControl: 'public, max-age=31536000' })
+          if (avifErr) return res.status(500).json({ error: avifErr.message })
+          const { data: avifPub } = supabase.storage.from(bucket).getPublicUrl(avifPath)
+
+          const webpBuf = await sharp(buffer).resize({ width: w }).webp({ quality: 80 }).toBuffer()
+          const webpPath = `${baseName}-${w}.webp`
+          const { error: webpErr } = await supabase.storage.from(bucket).upload(webpPath, webpBuf, { cacheControl: 'public, max-age=31536000' })
+          if (webpErr) return res.status(500).json({ error: webpErr.message })
+          const { data: webpPub } = supabase.storage.from(bucket).getPublicUrl(webpPath)
+
+          variants.push({ width: w, avif: avifPub.publicUrl, webp: webpPub.publicUrl })
         }
 
         // Also upload an original-optimized JPEG (max 1200)
@@ -205,7 +223,7 @@ module.exports = async (req, res) => {
         if (jpegErr) return res.status(500).json({ error: jpegErr.message })
         const { data: jpegPub } = supabase.storage.from(bucket).getPublicUrl(jpegPath)
 
-        res.json({ uploaded, jpeg: jpegPub.publicUrl })
+        res.json({ variants, jpeg: jpegPub.publicUrl })
       } else {
         // fallback: upload original file buffer and return URL
         const ext = (file.mimetype && file.mimetype.split('/')[1]) || 'bin'
