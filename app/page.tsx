@@ -198,6 +198,17 @@ async function DatafulHome() {
         const candidateLocal = path.join(process.cwd(), 'public', 'optim', 'lcp', 'lcp-1024.avif')
         if (fs.existsSync(candidateLocal)) {
           preloadHref = '/optim/lcp/lcp-1024.avif'
+          // build imagesrcset for preload so the browser can pick the right
+          // responsive variant during preload.
+          const base = '/optim/lcp'
+          const imagesrcset = `${base}/lcp-320.avif 320w, ${base}/lcp-640.avif 640w, ${base}/lcp-1024.avif 1024w, ${base}/lcp-1920.avif 1920w`
+          const imagesizes = '(max-width: 640px) 640px, 1200px'
+          return (
+            <>
+              <link rel="preload" as="image" href={preloadHref} imageSrcSet={imagesrcset} imageSizes={imagesizes} type="image/avif" crossOrigin="anonymous" />
+              <BioPage profile={profile} links={links || []} />
+            </>
+          )
         }
       } catch (e) {
         // ignore fs errors and fallback to remote candidate
