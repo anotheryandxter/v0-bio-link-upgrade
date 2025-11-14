@@ -202,7 +202,7 @@ importers:
         specifier: ^8.5
         version: 8.5.0
       sharp:
-        specifier: 0.32.4
+        specifier: ^0.32.4
         version: 0.32.4
       supabase:
         specifier: ^2.51.0
