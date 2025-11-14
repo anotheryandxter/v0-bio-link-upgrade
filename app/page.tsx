@@ -187,12 +187,25 @@ async function DatafulHome() {
       || (profile.homepage_background && profile.homepage_background.type === 'video' && profile.homepage_background.video?.poster)
 
     // If we found a candidate, emit a server-side preload link so the browser
-    // prioritizes fetching it during SSR. This reduces LCP by starting the
-    // image download earlier in the navigation lifecycle.
+    // prioritizes fetching it during SSR. Prefer a locally-generated AVIF
+    // variant when available under `/public/optim/lcp/lcp-1024.avif` to reduce
+    // network cost and decoding time.
     if (lcpCandidate) {
+      let preloadHref = lcpCandidate
+      try {
+        const fs = await import('fs')
+        const path = await import('path')
+        const candidateLocal = path.join(process.cwd(), 'public', 'optim', 'lcp', 'lcp-1024.avif')
+        if (fs.existsSync(candidateLocal)) {
+          preloadHref = '/optim/lcp/lcp-1024.avif'
+        }
+      } catch (e) {
+        // ignore fs errors and fallback to remote candidate
+      }
+
       return (
         <>
-          <link rel="preload" as="image" href={lcpCandidate} crossOrigin="anonymous" />
+          <link rel="preload" as="image" href={preloadHref} crossOrigin="anonymous" />
           <BioPage profile={profile} links={links || []} />
         </>
       )
