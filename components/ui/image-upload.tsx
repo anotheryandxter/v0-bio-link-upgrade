@@ -99,12 +99,14 @@ export function ImageUpload({
           return
         }
         const json = await r.json()
-        // Prefer the small WebP variant for display if available
-        if (json && json.uploaded && json.uploaded.length) {
+        // For maximum compatibility store the JPEG fallback as the canonical URL
+        // (most browsers support JPEG). We still return AVIF/WebP variants from
+        // the server under `variants` for optional client-side use.
+        if (json && json.jpeg) {
+          onChange(json.jpeg)
+        } else if (json && json.uploaded && json.uploaded.length) {
           const smallest = (json.uploaded as any[]).reduce((a: any, b: any) => (a.width < b.width ? a : b))
           onChange(smallest.url)
-        } else if (json && json.jpeg) {
-          onChange(json.jpeg)
         }
       } catch (err) {
         console.warn('Server upload error, keeping preview:', err)
