@@ -182,44 +182,68 @@ function ImageBackground({ config }: ImageBackgroundProps) {
         {(() => {
           const fit = (config.fit === 'stretch' ? 'fill' : config.fit) as any
           const position = (config.position || 'center') as any
-          // Prefer local optimized variants if present under /public/optim/lcp
-          const optimBase = '/optim/lcp'
-          const optim320 = `${optimBase}/lcp-320.avif`
-          const optim640 = `${optimBase}/lcp-640.avif`
-          const optim1024 = `${optimBase}/lcp-1024.avif`
-          const optim1920 = `${optimBase}/lcp-1920.avif`
+          // Helper: if the config provides `variants`, use those. Otherwise
+          // attempt to infer variant URLs by replacing the canonical JPEG suffix
+          // `-1200.jpg` with `-{width}.avif` / `-{width}.webp` paths.
+          const buildSourcesFromVariants = (variants?: Array<{ width: number; avif: string; webp: string }>) => {
+            if (variants && variants.length) {
+              const avifSrc = variants.map((v) => `${v.avif} ${v.width}w`).join(', ')
+              const webpSrc = variants.map((v) => `${v.webp} ${v.width}w`).join(', ')
+              const jpegFallback = (config.url && String(config.url)) || ''
+              return { avifSrc, webpSrc, jpegFallback }
+            }
 
-          const webp320 = `${optimBase}/lcp-320.webp`
-          const webp640 = `${optimBase}/lcp-640.webp`
-          const webp1024 = `${optimBase}/lcp-1024.webp`
-          const webp1920 = `${optimBase}/lcp-1920.webp`
+            // Infer by pattern replacement
+            const url = String(config.url || '')
+            const guessedSizes = [320, 640, 1024]
+            // If URL ends with -1200.jpg or -1200.jpeg, strip the suffix and build
+            // paths like -640.avif / -640.webp.
+            const match = url.match(/(.+)-1200\.(jpe?g|png)$/i)
+            if (match) {
+              const base = match[1]
+              const avifSrc = guessedSizes.map((w) => `${base}-${w}.avif ${w}w`).join(', ')
+              const webpSrc = guessedSizes.map((w) => `${base}-${w}.webp ${w}w`).join(', ')
+              const jpegFallback = url
+              return { avifSrc, webpSrc, jpegFallback }
+            }
 
-          const jpg1024 = `${optimBase}/lcp-1024.jpg`
+            // Fallback: no variants — return empty and let browser use the original URL
+            return { avifSrc: '', webpSrc: '', jpegFallback: url }
+          }
 
-          // Use a <picture> element with AVIF -> WebP -> JPEG fallbacks and a responsive srcset.
+          const { avifSrc, webpSrc, jpegFallback } = buildSourcesFromVariants(config.variants)
+
+          if (avifSrc || webpSrc) {
+            return (
+              <picture>
+                {avifSrc && <source type="image/avif" srcSet={avifSrc} sizes="(max-width: 640px) 640px, 1200px" />}
+                {webpSrc && <source type="image/webp" srcSet={webpSrc} sizes="(max-width: 640px) 640px, 1200px" />}
+                <img
+                  src={jpegFallback}
+                  alt="background"
+                  className={`${objectFitClass} ${objectPositionClass} w-full h-full`}
+                  style={{ opacity: config.opacity ?? 1 }}
+                  loading="eager"
+                  fetchPriority="high"
+                  onLoad={() => setLoaded(true)}
+                  decoding="async"
+                />
+              </picture>
+            )
+          }
+
+          // No variants or inference available — fall back to the original URL.
           return (
-            <picture>
-              <source
-                type="image/avif"
-                srcSet={`${optim320} 320w, ${optim640} 640w, ${optim1024} 1024w, ${optim1920} 1920w`}
-                sizes="(max-width: 640px) 640px, 1200px"
-              />
-              <source
-                type="image/webp"
-                srcSet={`${webp320} 320w, ${webp640} 640w, ${webp1024} 1024w, ${webp1920} 1920w`}
-                sizes="(max-width: 640px) 640px, 1200px"
-              />
-              <img
-                src={jpg1024}
-                alt="background"
-                className={`${objectFitClass} ${objectPositionClass} w-full h-full`}
-                style={{ opacity: config.opacity ?? 1 }}
-                loading="eager"
-                fetchPriority="high"
-                onLoad={() => setLoaded(true)}
-                decoding="async"
-              />
-            </picture>
+            <img
+              src={config.url}
+              alt="background"
+              className={`${objectFitClass} ${objectPositionClass} w-full h-full`}
+              style={{ opacity: config.opacity ?? 1 }}
+              loading="eager"
+              fetchPriority="high"
+              onLoad={() => setLoaded(true)}
+              decoding="async"
+            />
           )
         })()}
       </div>

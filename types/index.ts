@@ -68,6 +68,10 @@ export interface BackgroundConfig {
     position: "center" | "top" | "bottom" | "left" | "right" | "top-left" | "top-right" | "bottom-left" | "bottom-right"
     opacity?: number // 0-1
     blur?: number // 0-20px
+    // Optional variants returned by the upload endpoint. Each variant row
+    // contains a width and URLs for AVIF/WebP formats to allow the client to
+    // render a picture element with modern formats and fallbacks.
+    variants?: Array<{ width: number; avif: string; webp: string }>
   }
   video?: {
     webm?: string | null
