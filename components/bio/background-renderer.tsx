@@ -182,17 +182,44 @@ function ImageBackground({ config }: ImageBackgroundProps) {
         {(() => {
           const fit = (config.fit === 'stretch' ? 'fill' : config.fit) as any
           const position = (config.position || 'center') as any
+          // Prefer local optimized variants if present under /public/optim/lcp
+          const optimBase = '/optim/lcp'
+          const optim320 = `${optimBase}/lcp-320.avif`
+          const optim640 = `${optimBase}/lcp-640.avif`
+          const optim1024 = `${optimBase}/lcp-1024.avif`
+          const optim1920 = `${optimBase}/lcp-1920.avif`
+
+          const webp320 = `${optimBase}/lcp-320.webp`
+          const webp640 = `${optimBase}/lcp-640.webp`
+          const webp1024 = `${optimBase}/lcp-1024.webp`
+          const webp1920 = `${optimBase}/lcp-1920.webp`
+
+          const jpg1024 = `${optimBase}/lcp-1024.jpg`
+
+          // Use a <picture> element with AVIF -> WebP -> JPEG fallbacks and a responsive srcset.
           return (
-            <Image
-              src={config.url}
-              alt="background"
-              fill
-              priority
-              sizes="(max-width: 640px) 640px, 1200px"
-              style={{ objectFit: fit, objectPosition: position, opacity: config.opacity ?? 1 }}
-              onLoadingComplete={() => setLoaded(true)}
-              decoding="async"
-            />
+            <picture>
+              <source
+                type="image/avif"
+                srcSet={`${optim320} 320w, ${optim640} 640w, ${optim1024} 1024w, ${optim1920} 1920w`}
+                sizes="(max-width: 640px) 640px, 1200px"
+              />
+              <source
+                type="image/webp"
+                srcSet={`${webp320} 320w, ${webp640} 640w, ${webp1024} 1024w, ${webp1920} 1920w`}
+                sizes="(max-width: 640px) 640px, 1200px"
+              />
+              <img
+                src={jpg1024}
+                alt="background"
+                className={`${objectFitClass} ${objectPositionClass} w-full h-full`}
+                style={{ opacity: config.opacity ?? 1 }}
+                loading="eager"
+                fetchPriority="high"
+                onLoad={() => setLoaded(true)}
+                decoding="async"
+              />
+            </picture>
           )
         })()}
       </div>
