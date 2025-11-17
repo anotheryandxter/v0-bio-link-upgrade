@@ -4,8 +4,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { getCachedMonthlyStats, setCachedMonthlyStats } from '@/lib/cache/monthlyStatsCache'
 import { timeAsync } from '@/lib/profiler'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardAction, CardFooter } from "@/components/ui/card"
-import dynamicImport from 'next/dynamic'
-const AnalyticsPanelClient = dynamicImport(() => import('@/components/dashboard/analytics-panel-client'), { ssr: false })
+import AnalyticsPanelClient from '@/components/dashboard/analytics-client-wrapper'
 
 export const dynamic = "force-dynamic"
 

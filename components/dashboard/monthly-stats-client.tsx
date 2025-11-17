@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, CartesianGrid } from 'recharts'
+import { ResponsiveContainer, XAxis, YAxis, Tooltip, LineChart, Line, CartesianGrid } from 'recharts'
 
 export default function MonthlyStatsClient({ start, end, profileId, linkId, chartType }: { start?: string, end?: string, profileId?: string, linkId?: string | null, chartType?: 'line' | 'bar' }) {
   const [data, setData] = useState<any[]>([])
@@ -43,34 +43,35 @@ export default function MonthlyStatsClient({ start, end, profileId, linkId, char
   if (loading) return <div>Loading chart...</div>
   if (!data || data.length === 0) return <div>No stats available yet.</div>
 
-  // Decide chart mode: explicit prop `chartType` wins, otherwise fall back to detection
+  // Normalize both daily and monthly data to a common shape for the line chart:
+  // { label: string, value: number, raw: any }
   const detectedDaily = (data && data.length > 0 && Object.prototype.hasOwnProperty.call(data[0], 'day'))
-  const useLine = chartType === 'line' || (typeof chartType === 'undefined' && (Boolean(linkId) || detectedDaily))
-  if (useLine) {
-    return (
-      <div style={{ width: '100%', height: 300 }}>
-        <ResponsiveContainer>
-          <LineChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="day" tickFormatter={(d) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} />
-            <YAxis />
-            <Tooltip labelFormatter={(label) => new Date(label).toLocaleString()} />
-            <Line type="monotone" dataKey="visits" stroke="#4f46e5" strokeWidth={2} dot={{ r: 2 }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    )
-  }
+  const normalized = (data || []).map((d: any) => {
+    if (detectedDaily) {
+      return { label: d.day, value: d.visits || 0, raw: d }
+    }
+    // monthly rows were mapped earlier to { name, clicks }
+    return { label: d.name || (d.month ? new Date(d.month).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''), value: d.clicks || 0, raw: d }
+  })
 
   return (
     <div style={{ width: '100%', height: 300 }}>
       <ResponsiveContainer>
-        <BarChart data={data}>
-          <XAxis dataKey="name" />
+        <LineChart data={normalized} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="label" tickFormatter={(d: any) => {
+            // Format ISO dates nicely, otherwise show label as-is
+            const parsed = Date.parse(d)
+            if (!isNaN(parsed)) return new Date(d).toLocaleDateString(undefined, { month: 'short', day: detectedDaily ? 'numeric' : undefined })
+            return d
+          }} />
           <YAxis />
-          <Tooltip />
-          <Bar dataKey="clicks" fill="#8884d8" />
-        </BarChart>
+          <Tooltip labelFormatter={(label) => {
+            const parsed = Date.parse(label)
+            return !isNaN(parsed) ? new Date(label).toLocaleString() : label
+          }} />
+          <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={2} dot={{ r: 2 }} />
+        </LineChart>
       </ResponsiveContainer>
     </div>
   )
