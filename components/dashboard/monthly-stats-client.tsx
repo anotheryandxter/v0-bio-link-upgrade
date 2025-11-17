@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, CartesianGrid } from 'recharts'
 
-export default function MonthlyStatsClient({ start, end, profileId, linkId }: { start?: string, end?: string, profileId?: string, linkId?: string | null }) {
+export default function MonthlyStatsClient({ start, end, profileId, linkId, chartType }: { start?: string, end?: string, profileId?: string, linkId?: string | null, chartType?: 'line' | 'bar' }) {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -43,9 +43,10 @@ export default function MonthlyStatsClient({ start, end, profileId, linkId }: { 
   if (loading) return <div>Loading chart...</div>
   if (!data || data.length === 0) return <div>No stats available yet.</div>
 
-  // If linkId provided or the data contains daily `day` buckets, render a day-by-day line chart.
-  const isDaily = Boolean(linkId) || (data && data.length > 0 && Object.prototype.hasOwnProperty.call(data[0], 'day'))
-  if (isDaily) {
+  // Decide chart mode: explicit prop `chartType` wins, otherwise fall back to detection
+  const detectedDaily = (data && data.length > 0 && Object.prototype.hasOwnProperty.call(data[0], 'day'))
+  const useLine = chartType === 'line' || (typeof chartType === 'undefined' && (Boolean(linkId) || detectedDaily))
+  if (useLine) {
     return (
       <div style={{ width: '100%', height: 300 }}>
         <ResponsiveContainer>

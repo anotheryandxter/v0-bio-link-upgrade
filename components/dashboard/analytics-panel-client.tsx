@@ -80,7 +80,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
       </div>
 
       <div>
-        <MonthlyStatsClient start={start} end={end} profileId={profileId} linkId={linkId} />
+        <MonthlyStatsClient start={start} end={end} profileId={profileId} linkId={linkId} chartType={linkId ? 'line' : 'bar'} />
       </div>
 
       <div>
