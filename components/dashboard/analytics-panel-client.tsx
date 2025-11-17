@@ -28,7 +28,8 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
   if (profileId) params.set('profileId', profileId)
         if (linkId) params.set('linkId', linkId)
         if (search) params.set('search', search)
-        const res = await fetch(`/api/analytics/monthly?${params.toString()}`)
+        const endpoint = linkId ? '/api/analytics/logs' : '/api/analytics/monthly'
+        const res = await fetch(`${endpoint}?${params.toString()}`)
         const json = await res.json()
         if (!mounted) return
         setRows(json.data || [])
@@ -60,7 +61,10 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
           <label className="text-sm block">Link</label>
           <select value={linkId || ''} onChange={e => setLinkId(e.target.value || null)} className="border rounded px-2 py-1">
             <option value="">All</option>
-            {links?.map((l: any) => <option key={l.id} value={l.id}>{l.title || l.url}</option>)}
+            {/** Dedupe links by id in case server returns duplicates */}
+            {Array.from(new Map((links || []).map((l: any) => [l.id, l])).values()).map((l: any) => (
+              <option key={l.id} value={l.id}>{l.title || l.url}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -76,36 +80,66 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
       </div>
 
       <div>
-        <MonthlyStatsClient start={start} end={end} profileId={profileId} />
+        <MonthlyStatsClient start={start} end={end} profileId={profileId} linkId={linkId} />
       </div>
 
       <div>
         <div className="text-sm text-muted-foreground">Showing {(page-1)*perPage+1} - {Math.min(page*perPage, total)} of {total}</div>
         <div className="overflow-x-auto mt-2">
-          <table className="w-full table-auto">
-            <thead>
-              <tr className="text-left">
-                <th className="px-2 py-1">Month</th>
-                <th className="px-2 py-1">Link</th>
-                <th className="px-2 py-1">URL</th>
-                <th className="px-2 py-1">Clicks</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={4} className="py-4">Loading...</td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td colSpan={4} className="py-4">No results</td></tr>
-              ) : rows.map((r: any) => (
-                <tr key={`${r.link_id}-${r.month}`}>
-                  <td className="px-2 py-1">{new Date(r.month).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}</td>
-                  <td className="px-2 py-1">{r.title}</td>
-                  <td className="px-2 py-1"><a href={r.url} className="text-blue-600" target="_blank" rel="noreferrer">{r.url}</a></td>
-                  <td className="px-2 py-1">{r.clicks}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            {/** If a specific link is selected, show detailed raw logs (timestamp, UA, IP). Otherwise show monthly aggregates (as before). */}
+            {linkId ? (
+              <table className="w-full table-auto">
+                <thead>
+                  <tr className="text-left">
+                    <th className="px-2 py-1">Timestamp</th>
+                    <th className="px-2 py-1">Link</th>
+                    <th className="px-2 py-1">URL</th>
+                    <th className="px-2 py-1">User Agent</th>
+                    <th className="px-2 py-1">IP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={5} className="py-4">Loading...</td></tr>
+                  ) : rows.length === 0 ? (
+                    <tr><td colSpan={5} className="py-4">No results</td></tr>
+                  ) : rows.map((r: any, idx: number) => (
+                    <tr key={`${r.id || idx}-${r.clicked_at}`}>
+                      <td className="px-2 py-1">{new Date(r.clicked_at).toLocaleString()}</td>
+                      <td className="px-2 py-1">{r.title}</td>
+                      <td className="px-2 py-1"><a href={r.url} className="text-blue-600" target="_blank" rel="noreferrer">{r.url}</a></td>
+                      <td className="px-2 py-1">{r.user_agent || '—'}</td>
+                      <td className="px-2 py-1">{r.ip_address || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full table-auto">
+                <thead>
+                  <tr className="text-left">
+                    <th className="px-2 py-1">Month</th>
+                    <th className="px-2 py-1">Link</th>
+                    <th className="px-2 py-1">URL</th>
+                    <th className="px-2 py-1">Clicks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={4} className="py-4">Loading...</td></tr>
+                  ) : rows.length === 0 ? (
+                    <tr><td colSpan={4} className="py-4">No results</td></tr>
+                  ) : rows.map((r: any) => (
+                    <tr key={`${r.link_id}-${r.month}`}>
+                      <td className="px-2 py-1">{new Date(r.month).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}</td>
+                      <td className="px-2 py-1">{r.title}</td>
+                      <td className="px-2 py-1"><a href={r.url} className="text-blue-600" target="_blank" rel="noreferrer">{r.url}</a></td>
+                      <td className="px-2 py-1">{r.clicks}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
         </div>
 
         <div className="flex items-center justify-between mt-3">
