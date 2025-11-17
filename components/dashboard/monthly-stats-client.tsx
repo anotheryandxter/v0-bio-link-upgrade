@@ -43,8 +43,9 @@ export default function MonthlyStatsClient({ start, end, profileId, linkId }: { 
   if (loading) return <div>Loading chart...</div>
   if (!data || data.length === 0) return <div>No stats available yet.</div>
 
-  // If linkId provided, render a day-by-day line chart. Otherwise render monthly bars.
-  if (linkId) {
+  // If linkId provided or the data contains daily `day` buckets, render a day-by-day line chart.
+  const isDaily = Boolean(linkId) || (data && data.length > 0 && Object.prototype.hasOwnProperty.call(data[0], 'day'))
+  if (isDaily) {
     return (
       <div style={{ width: '100%', height: 300 }}>
         <ResponsiveContainer>
