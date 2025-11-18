@@ -1,19 +1,26 @@
 import { NextResponse, type NextRequest } from "next/server"
+
+export const dynamic = 'force-dynamic'
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const url = new URL(request.url)
-    const source = url.searchParams.get("source")
-    if (!source) return NextResponse.next()
+    let source = request.nextUrl.searchParams.get("source")
+    if (!source) return new Response(null, { status: 204 })
+    // Normalize the incoming slug: trim whitespace and prefer case-insensitive
+    // matching so `Source=My-Slug` and `source=my-slug` behave the same.
+    source = source.trim()
+    if (!source) return new Response(null, { status: 204 })
 
     const admin = createAdminSupabaseClient()
 
-    // Lookup link by embed_slug (case-sensitive exact match). Also ensure active.
+    // Lookup link by embed_slug using a case-insensitive match. This keeps
+    // behavior consistent regardless of the casing used in the incoming
+    // `source` query param. We still require the link be active.
     const { data: links, error } = await admin
       .from("links")
       .select("id, url, is_active")
-      .eq("embed_slug", source)
+      .ilike("embed_slug", source)
       .limit(1)
 
     if (error) {
@@ -23,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     const link = Array.isArray(links) && links.length > 0 ? (links as any)[0] : null
     if (!link || !link.is_active || !link.url) {
-      return NextResponse.next()
+      return new Response(null, { status: 404 })
     }
 
     // Attempt to log the click via the server-side RPC. We don't block the redirect
@@ -36,15 +43,39 @@ export async function GET(request: NextRequest) {
 
       // Call insert_click_if_not_exists RPC to keep parity with client-side tracking
       // RPC accepts: p_link_id, p_user_identifier, p_user_agent, p_referrer, p_ip
-      const { error: rpcErr } = await admin.rpc("insert_click_if_not_exists", {
+      const rpcRes: any = await admin.rpc("insert_click_if_not_exists", {
         p_link_id: link.id,
         p_user_identifier: null,
         p_user_agent: userAgent,
         p_referrer: referrer,
         p_ip: ip || null,
+        p_source: source || null,
       })
 
-      if (rpcErr) console.error("Failed to record embed click:", rpcErr)
+      // Supabase RPC returns { data, error }. If error exists, or data === false
+      // (function ran but did not insert due to dedupe), we still want to record
+      // the embed click. Treat both cases as a signal to perform a direct insert.
+      const rpcErr = rpcRes?.error
+      const rpcData = rpcRes?.data
+      if (rpcErr || rpcData === false) {
+        if (rpcErr) console.error("Failed to record embed click (RPC), falling back to direct insert:", rpcErr)
+        try {
+          // Force-insert a raw row into link_clicks to ensure the embed visit is recorded.
+          // Include the incoming `source` slug so embed-originated clicks can be
+          // attributed and filtered in analytics.
+          const insertPayload: any = {
+            link_id: link.id,
+            user_agent: userAgent,
+            referrer: referrer,
+            ip_address: ip || null,
+            source: source,
+          }
+          const { error: insertErr } = await admin.from('link_clicks').insert(insertPayload)
+          if (insertErr) console.error('Fallback insert failed for embed click:', insertErr)
+        } catch (ie) {
+          console.error('Fallback embed click insert threw:', ie)
+        }
+      }
     } catch (e) {
       console.error("Embed click logging failed:", e)
     }

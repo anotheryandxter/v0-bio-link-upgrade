@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { linkId, userAgent, referrer, userIdentifier } = await request.json()
+    const { linkId, userAgent, referrer, userIdentifier, source } = await request.json()
 
     // Get client IP address
     const forwarded = request.headers.get("x-forwarded-for")
@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
       p_user_agent: userAgent || null,
       p_referrer: referrer || null,
       p_ip: ip || null,
+      p_source: source || null,
     })
 
     if (error) {

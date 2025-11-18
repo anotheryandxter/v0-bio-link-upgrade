@@ -124,7 +124,8 @@ CREATE OR REPLACE FUNCTION public.insert_click_if_not_exists(
   p_user_identifier text,
   p_user_agent text,
   p_referrer text,
-  p_ip inet
+  p_ip inet,
+  p_source text DEFAULT NULL
 )
 RETURNS boolean
 LANGUAGE plpgsql
@@ -137,8 +138,8 @@ BEGIN
       AND (user_identifier IS NOT DISTINCT FROM p_user_identifier)
       AND clicked_at >= NOW() - INTERVAL '24 hours'
   ) THEN
-    INSERT INTO link_clicks (link_id, user_agent, referrer, ip_address, user_identifier)
-    VALUES (p_link_id, p_user_agent, p_referrer, p_ip, p_user_identifier);
+    INSERT INTO link_clicks (link_id, user_agent, referrer, ip_address, user_identifier, source)
+    VALUES (p_link_id, p_user_agent, p_referrer, p_ip, p_user_identifier, p_source);
     RETURN TRUE;
   ELSE
     RETURN FALSE;

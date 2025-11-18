@@ -2,6 +2,7 @@ import * as React from 'react'
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { getCachedMonthlyStats, setCachedMonthlyStats } from '@/lib/cache/monthlyStatsCache'
+import { formatMonthShort, startOfDayIsoTZ } from '@/lib/timezone'
 import { timeAsync } from '@/lib/profiler'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardAction, CardFooter } from "@/components/ui/card"
 import AnalyticsPanelClient from '@/components/dashboard/analytics-client-wrapper'
@@ -33,7 +34,76 @@ export default async function AnalyticsPage() {
     .order("clicked_at", { ascending: false })
     .limit(100)
 
+  // Also fetch all links for this profile so the dashboard can show every link
+  // (even those with zero recorded clicks). This prevents the dropdown from
+  // only showing recently clicked links.
+  let allLinks: any[] = []
+  try {
+    const { data: linksData, error: linksErr } = await admin.from('links').select('id,title,url').eq('profile_id', profile.id)
+    if (!linksErr && Array.isArray(linksData)) allLinks = linksData
+    // Fetch totals from materialized view and merge counts into the links list
+    try {
+      // Prefer Jakarta-aware materialized view if present
+      let mvRows: any = null
+      try {
+        const res = await admin.from('monthly_link_stats_jakarta').select('link_id,clicks').eq('profile_id', profile.id)
+        mvRows = res.data
+        if (res.error) throw res.error
+      } catch (e) {
+        const res = await admin.from('monthly_link_stats').select('link_id,clicks').eq('profile_id', profile.id)
+        mvRows = res.data
+      }
+      const mvErr = null
+      if (Array.isArray(mvRows)) {
+        const totalsMap = new Map<string, number>()
+        for (const r of mvRows) {
+          const lid = r.link_id
+          const prev = totalsMap.get(lid) || 0
+          totalsMap.set(lid, prev + (r.clicks || 0))
+        }
+        allLinks = (allLinks || []).map(l => ({ ...l, clicks: totalsMap.get(l.id) || 0 }))
+      } else {
+        // ensure clicks default to 0
+        allLinks = (allLinks || []).map(l => ({ ...l, clicks: 0 }))
+      }
+    } catch (e) {
+      console.error('Failed to fetch totals from monthly_link_stats', e)
+      allLinks = (allLinks || []).map(l => ({ ...l, clicks: 0 }))
+    }
+  } catch (e) {
+    console.error('Failed to fetch profile links for analytics dropdown', e)
+  }
+
+  // Compute precise counts for Today and This Week using admin (avoid 100-row cap)
   const admin = createAdminSupabaseClient()
+
+  // Today's clicks: start of today in GMT+7 (exclude embedded redirects)
+  const yesterdayStr = startOfDayIsoTZ(0)
+  let todayCount = 0
+  try {
+    const { count, error } = await admin
+      .from('link_clicks')
+      .select('id', { count: 'exact' })
+      .gte('clicked_at', yesterdayStr)
+      .not('user_identifier', 'is', null)
+    if (!error) todayCount = count || 0
+  } catch (e) {
+    console.error('Failed to fetch today count', e)
+  }
+
+  // This Week: last 7 days, same exclusion of embedded clicks
+  const weekAgoStr = startOfDayIsoTZ(7)
+  let weekCount = 0
+  try {
+    const { count, error } = await admin
+      .from('link_clicks')
+      .select('id', { count: 'exact' })
+      .gte('clicked_at', weekAgoStr)
+      .not('user_identifier', 'is', null)
+    if (!error) weekCount = count || 0
+  } catch (e) {
+    console.error('Failed to fetch week count', e)
+  }
 
   // Default range: last 6 months
   const sixMonthsAgo = new Date()
@@ -45,7 +115,11 @@ export default async function AnalyticsPage() {
   const cacheKey = `monthly::${startStr}:${endStr}`
   let monthlyRows = getCachedMonthlyStats(cacheKey)
   if (!monthlyRows) {
-    const rpcResult: any = await timeAsync('rpc:get_link_stats', async () => await admin.rpc('get_link_stats', { p_start_date: startStr, p_end_date: endStr }))
+    // Try Jakarta-aware RPC first, then fall back to the original RPC
+    let rpcResult: any = await timeAsync('rpc:get_link_stats_jakarta', async () => await admin.rpc('get_link_stats_jakarta', { p_profile_id: profile.id, p_start_date: startStr, p_end_date: endStr }))
+    if (rpcResult?.error) {
+      rpcResult = await timeAsync('rpc:get_link_stats', async () => await admin.rpc('get_link_stats', { p_profile_id: profile.id, p_start_date: startStr, p_end_date: endStr }))
+    }
     const data = rpcResult?.data
     const monthlyErr = rpcResult?.error
     if (monthlyErr) {
@@ -59,7 +133,7 @@ export default async function AnalyticsPage() {
 
   // Prepare data for chart: aggregate per link title across months (simple flattened view)
   const chartData = (monthlyRows || []).map((r: any) => ({
-    name: `${r.title} (${new Date(r.month).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })})`,
+    name: `${r.title} (${formatMonthShort(r.month)})`,
     clicks: r.clicks,
   }))
 
@@ -96,14 +170,7 @@ export default async function AnalyticsPage() {
             <CardDescriptionAny>Clicks in the last 24 hours</CardDescriptionAny>
           </CardHeaderAny>
           <CardContentAny>
-            <div className="text-3xl font-bold">
-              {clicksData?.filter((click: any) => {
-                const clickDate = new Date(click.clicked_at)
-                const yesterday = new Date()
-                yesterday.setDate(yesterday.getDate() - 1)
-                return clickDate > yesterday
-              }).length || 0}
-            </div>
+            <div className="text-3xl font-bold">{todayCount}</div>
           </CardContentAny>
         </CardAny>
 
@@ -113,14 +180,7 @@ export default async function AnalyticsPage() {
             <CardDescriptionAny>Clicks in the last 7 days</CardDescriptionAny>
           </CardHeaderAny>
           <CardContentAny>
-            <div className="text-3xl font-bold">
-              {clicksData?.filter((click: any) => {
-                const clickDate = new Date(click.clicked_at)
-                const weekAgo = new Date()
-                weekAgo.setDate(weekAgo.getDate() - 7)
-                return clickDate > weekAgo
-              }).length || 0}
-            </div>
+            <div className="text-3xl font-bold">{weekCount}</div>
           </CardContentAny>
         </CardAny>
       </div>
@@ -134,7 +194,7 @@ export default async function AnalyticsPage() {
             {/* Show monthly chart if available */}
                     {chartData && chartData.length > 0 ? (
                       <>
-                        <AnalyticsPanelAny links={clicksData?.map((c: any) => c.links).filter(Boolean)} defaultStart={startStr} defaultEnd={endStr} profileId={profile.id} />
+                        <AnalyticsPanelAny links={allLinks} defaultStart={startStr} defaultEnd={endStr} profileId={profile.id} />
                       </>
                     ) : (
               <div className="text-center py-8 text-muted-foreground">

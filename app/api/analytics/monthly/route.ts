@@ -56,21 +56,47 @@ export async function GET(request: Request) {
     const finalLimit = limit !== null ? limit : perPage
     const finalOffset = offset !== null ? offset : (page - 1) * perPage
 
-    let rpcResult: any = await timeAsync('rpc:get_link_stats', async () => await admin.rpc('get_link_stats', {
-      p_profile_id: profileId,
-      p_start_date: startDate || null,
-      p_end_date: endDate || null,
-      p_link_id: linkId || null,
-      p_search: search || null,
-      p_limit: finalLimit,
-      p_offset: finalOffset,
-    }))
-    let data = rpcResult?.data
-    let error = rpcResult?.error
-    // Fallback: some DBs may have a profile-agnostic RPC signature (no p_profile_id)
-    if (error && error.code === 'PGRST202') {
-      console.warn('get_link_stats RPC signature mismatch; retrying without p_profile_id')
-      rpcResult = await timeAsync('rpc:get_link_stats', async () => await admin.rpc('get_link_stats', {
+    let data: any = null
+    let error: any = null
+    let usedView = false
+
+    // Prefer the pre-aggregated Jakarta-aware materialized view for profile-level monthly queries
+    // when no specific linkId is requested. This makes the dashboard use the
+    // DB's materialized aggregates (monthly_link_stats_jakarta) for consistent numbers.
+    if (!linkId) {
+      try {
+        const q = admin
+          .from('monthly_link_stats_jakarta')
+          .select('link_id,title,url,month,clicks')
+        if (profileId) q.eq('profile_id', profileId)
+        if (startDate) q.gte('month', startDate)
+        if (endDate) q.lte('month', endDate)
+        if (search) {
+          q.or(`title.ilike.*${search}*,url.ilike.*${search}*`)
+        }
+        // ordering and pagination
+        q.order('month', { ascending: false })
+        q.order('clicks', { ascending: false })
+        if (finalLimit !== null) q.limit(finalLimit)
+        if (finalOffset) q.offset(finalOffset)
+
+        const viewRes = await timeAsync('view:monthly_link_stats', async () => await q)
+        data = viewRes?.data
+        error = viewRes?.error
+        if (!error && Array.isArray(data)) usedView = true
+        // if the view doesn't exist or returns an error, fall back to RPC below
+      } catch (e) {
+        console.warn('monthly_link_stats view query failed, falling back to RPC', e)
+        data = null
+        error = e
+      }
+    }
+
+    // If we don't have data from the materialized view, fall back to the existing RPC (or JS aggregation)
+    if (!data) {
+      // Try Jakarta-aware RPC first, then fall back to the existing RPC
+      let rpcResult: any = await timeAsync('rpc:get_link_stats_jakarta', async () => await admin.rpc('get_link_stats_jakarta', {
+        p_profile_id: profileId,
         p_start_date: startDate || null,
         p_end_date: endDate || null,
         p_link_id: linkId || null,
@@ -78,10 +104,37 @@ export async function GET(request: Request) {
         p_limit: finalLimit,
         p_offset: finalOffset,
       }))
+      if (rpcResult?.error) {
+        // fallback to original RPC name
+        rpcResult = await timeAsync('rpc:get_link_stats', async () => await admin.rpc('get_link_stats', {
+          p_profile_id: profileId,
+          p_start_date: startDate || null,
+          p_end_date: endDate || null,
+          p_link_id: linkId || null,
+          p_search: search || null,
+          p_limit: finalLimit,
+          p_offset: finalOffset,
+        }))
+      }
       data = rpcResult?.data
       error = rpcResult?.error
+      // Fallback: some DBs may have a profile-agnostic RPC signature (no p_profile_id)
+      if (error && error.code === 'PGRST202') {
+        console.warn('get_link_stats RPC signature mismatch; retrying without p_profile_id')
+        rpcResult = await timeAsync('rpc:get_link_stats', async () => await admin.rpc('get_link_stats', {
+          p_start_date: startDate || null,
+          p_end_date: endDate || null,
+          p_link_id: linkId || null,
+          p_search: search || null,
+          p_limit: finalLimit,
+          p_offset: finalOffset,
+        }))
+        data = rpcResult?.data
+        error = rpcResult?.error
+      }
     }
-    if (error) {
+
+    if (error && !data) {
         console.error('RPC error', error)
         // Fallback: if DB RPCs are not present on this environment, perform aggregation in JS
         try {
@@ -151,32 +204,59 @@ export async function GET(request: Request) {
     // also fetch total count for pagination UI
     let total = 0
     try {
-      let countResult: any = await timeAsync('rpc:get_link_stats_count', async () => await admin.rpc('get_link_stats_count', {
-        p_profile_id: profileId,
-        p_start_date: startDate || null,
-        p_end_date: endDate || null,
-        p_link_id: linkId || null,
-        p_search: search || null,
-      }))
-      let countData = countResult?.data
-      let countError = countResult?.error
-      if (countError && countError.code === 'PGRST202') {
-        // retry without profile_id
-        console.warn('get_link_stats_count RPC signature mismatch; retrying without p_profile_id')
-        countResult = await timeAsync('rpc:get_link_stats_count', async () => await admin.rpc('get_link_stats_count', {
+      if (usedView) {
+        try {
+          // Use head select with exact count from the Jakarta materialized view
+          let qc = admin.from('monthly_link_stats_jakarta').select('link_id', { count: 'exact', head: true })
+          if (profileId) qc = qc.eq('profile_id', profileId)
+          if (startDate) qc = qc.gte('month', startDate)
+          if (endDate) qc = qc.lte('month', endDate)
+          if (search) qc = qc.or(`title.ilike.*${search}*,url.ilike.*${search}*`)
+          const countRes = await timeAsync('view:monthly_link_stats_count', async () => await qc)
+          total = parseInt(String((countRes as any).count || 0), 10) || 0
+        } catch (e) {
+          console.warn('Failed to fetch monthly_link_stats count; falling back to RPC count', e)
+        }
+      }
+
+      if (!usedView) {
+        // Try Jakarta-aware count RPC first, then fall back
+        let countResult: any = await timeAsync('rpc:get_link_stats_count_jakarta', async () => await admin.rpc('get_link_stats_count_jakarta', {
+          p_profile_id: profileId,
           p_start_date: startDate || null,
           p_end_date: endDate || null,
           p_link_id: linkId || null,
           p_search: search || null,
         }))
-        countData = countResult?.data
-        countError = countResult?.error
-      }
-      if (!countError && Array.isArray(countData) && countData[0] && typeof countData[0].total !== 'undefined') {
-        total = parseInt(String(countData[0].total), 10) || 0
-      }
-      if (countError) {
-        console.warn('Failed to fetch stats total count', countError)
+        if (countResult?.error) {
+          countResult = await timeAsync('rpc:get_link_stats_count', async () => await admin.rpc('get_link_stats_count', {
+            p_profile_id: profileId,
+            p_start_date: startDate || null,
+            p_end_date: endDate || null,
+            p_link_id: linkId || null,
+            p_search: search || null,
+          }))
+        }
+        let countData = countResult?.data
+        let countError = countResult?.error
+        if (countError && countError.code === 'PGRST202') {
+          // retry without profile_id
+          console.warn('get_link_stats_count RPC signature mismatch; retrying without p_profile_id')
+          countResult = await timeAsync('rpc:get_link_stats_count', async () => await admin.rpc('get_link_stats_count', {
+            p_start_date: startDate || null,
+            p_end_date: endDate || null,
+            p_link_id: linkId || null,
+            p_search: search || null,
+          }))
+          countData = countResult?.data
+          countError = countResult?.error
+        }
+        if (!countError && Array.isArray(countData) && countData[0] && typeof countData[0].total !== 'undefined') {
+          total = parseInt(String(countData[0].total), 10) || 0
+        }
+        if (countError) {
+          console.warn('Failed to fetch stats total count', countError)
+        }
       }
     } catch (e) {
       console.warn('Failed to fetch stats total count', e)

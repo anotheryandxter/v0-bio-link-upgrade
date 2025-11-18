@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
+import { formatDateTime, formatMonthShort } from '@/lib/timezone'
 import MonthlyStatsClient from './monthly-stats-client'
 import UAParser from 'ua-parser-js'
 
@@ -34,6 +35,8 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
   }
 
   const [monthlyAgg, setMonthlyAgg] = useState<any[]>([])
+  const [refreshLoading, setRefreshLoading] = useState(false)
+  const [refreshCounter, setRefreshCounter] = useState(0)
 
   // Helper: extract hostname/destination from a URL
   function extractDestination(url?: string) {
@@ -46,39 +49,57 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
     }
   }
 
-  // Build link options filtered to only those that have click data in `rows` (counts)
-  const linkCounts = new Map<string, number>()
-  const linkTitles = new Map<string, string>()
+  // Build link options: always prefer the server-provided `links` prop when
+  // available so the dropdown lists every link for the profile. Merge in
+  // totals from `monthlyAgg` (if present) and fall back to `rows` aggregation.
+  let linkOptions: Array<{ id: string, title: string, count: number }> = []
+  const totalsMap = new Map<string, number>()
+
+  // Aggregate totals from monthlyAgg (may be per-month rows) and build a
+  // title lookup so we can show human-friendly titles even when the
+  // `links` prop doesn't include them.
+  const titleLookup = new Map<string, string>()
+  ;(monthlyAgg || []).forEach((r: any) => {
+    const id = r.link_id || (r.links && r.links.id) || r.id
+    if (!id) return
+    const prev = totalsMap.get(id) || 0
+    totalsMap.set(id, prev + (r.clicks || 0))
+    if (r.title) titleLookup.set(id, r.title)
+  })
+  // Also use currently loaded rows as a secondary source for titles
   ;(rows || []).forEach((r: any) => {
     const id = r.link_id || (r.links && r.links.id) || (r.link && r.link.id)
     if (!id) return
-    const prev = linkCounts.get(id) || 0
-    const add = typeof r.clicks === 'number' ? r.clicks : 1
-    linkCounts.set(id, prev + add)
-    if (!linkTitles.has(id)) linkTitles.set(id, r.title || (r.links && r.links.title) || r.name || r.url || id)
+    if (r.title) titleLookup.set(id, r.title)
   })
 
-  // Merge counts from monthly aggregates as well (so dropdown reflects monthly data)
-  ;(monthlyAgg || []).forEach((r: any) => {
-    const id = r.link_id || (r.links && r.links.id) || (r.link && r.link.id) || r.id
-    if (!id) return
-    const prev = linkCounts.get(id) || 0
-    const add = typeof r.clicks === 'number' ? r.clicks : 0
-    linkCounts.set(id, prev + add)
-    if (!linkTitles.has(id)) linkTitles.set(id, r.title || (r.links && r.links.title) || r.name || r.url || id)
-  })
-
-  // Build the select options: prefer links with counts > 0, sorted by count desc
-  let linkOptions: Array<{ id: string, title: string, count: number }> = []
-  if (linkCounts.size > 0) {
-    for (const [id, count] of linkCounts.entries()) {
-      const title = linkTitles.get(id) || ((links || []).find((l: any) => l.id === id)?.title) || id
-      linkOptions.push({ id, title, count })
+  if (Array.isArray(links) && links.length > 0) {
+    // Use the supplied links list and attach totals (or 0). Prefer the link
+    // title from the `links` prop, then from the monthlyAgg/rows lookup,
+    // then fall back to URL or id.
+    linkOptions = (links || []).map((l: any) => ({
+      id: l.id,
+      title: l.title || titleLookup.get(l.id) || l.url || l.id,
+      count: totalsMap.get(l.id) ?? (typeof l.clicks === 'number' ? l.clicks : 0)
+    }))
+    // Sort alphabetically so all links are visible and easy to find
+    linkOptions.sort((a, b) => a.title.localeCompare(b.title))
+  } else if (totalsMap.size > 0) {
+    // No server links list: build options from monthlyAgg totals
+    for (const [id, count] of totalsMap.entries()) {
+      linkOptions.push({ id, title: titleLookup.get(id) || String(id), count })
     }
     linkOptions.sort((a, b) => b.count - a.count)
   } else {
-    // Fallback: show deduped links passed from parent
-    linkOptions = Array.from(new Map((links || []).map((l: any) => [l.id, { id: l.id, title: l.title || l.url, count: 0 }])).values())
+    // Last-resort: build from paginated rows
+    const rowMap = new Map<string, number>()
+    ;(rows || []).forEach((r: any) => {
+      const id = r.link_id || (r.links && r.links.id) || (r.link && r.link.id)
+      if (!id) return
+      rowMap.set(id, (rowMap.get(id) || 0) + (r.clicks || 1))
+    })
+    for (const [id, count] of rowMap.entries()) linkOptions.push({ id, title: titleLookup.get(id) || String(id), count })
+    linkOptions.sort((a, b) => b.count - a.count)
   }
 
   useEffect(() => {
@@ -116,7 +137,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
     }
     fetchRows()
     return () => { mounted = false }
-  }, [start, end, linkId, search, page, perPage])
+  }, [start, end, linkId, search, page, perPage, refreshCounter])
 
   const totalPages = Math.max(1, Math.ceil((total || 0) / perPage))
 
@@ -153,8 +174,49 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
         </div>
       </div>
 
-      <div>
-        <MonthlyStatsClient start={start} end={end} profileId={profileId} linkId={linkId} chartType={linkId ? 'line' : 'bar'} />
+      <div className="flex items-center justify-between">
+        <div className="w-full">
+          <MonthlyStatsClient start={start} end={end} profileId={profileId} linkId={linkId} chartType={linkId ? 'line' : 'bar'} />
+        </div>
+            <div className="ml-4">
+          <label className="text-sm block">Export</label>
+          <div className="flex flex-col">
+            <button onClick={() => {
+              try {
+                const params = new URLSearchParams()
+                if (start) params.set('start', start)
+                if (end) params.set('end', end)
+                if (linkId) params.set('linkId', linkId)
+                if (profileId) params.set('profileId', profileId)
+                // export only stats for active links
+                params.set('activeOnly', 'true')
+                params.set('format', 'csv')
+                const url = `/api/analytics/export?${params.toString()}`
+                window.open(url, '_blank')
+              } catch (e) {
+                console.error('Failed to start export', e)
+              }
+            }} className="px-3 py-1 border rounded bg-white">CSV (active links)</button>
+                <button
+                  onClick={async () => {
+                    try {
+                      setRefreshLoading(true)
+                      const res = await fetch('/api/analytics/refresh', { method: 'POST' })
+                      if (!res.ok) throw new Error('Failed to refresh')
+                      // increment counter to trigger re-fetch
+                      setRefreshCounter(c => c + 1)
+                    } catch (e) {
+                      console.error('Failed to refresh monthly stats', e)
+                      alert('Failed to refresh stats from DB')
+                    } finally {
+                      setRefreshLoading(false)
+                    }
+                  }}
+                  className="mt-2 px-3 py-1 border rounded bg-white"
+                  disabled={refreshLoading}
+                >{refreshLoading ? 'Refreshing…' : 'Refresh DB'}</button>
+          </div>
+        </div>
       </div>
 
       <div>
@@ -180,7 +242,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
                     <tr><td colSpan={6} className="py-4">No results</td></tr>
                   ) : rows.map((r: any, idx: number) => (
                     <tr key={`${r.id || idx}-${r.clicked_at}`}>
-                      <td className="px-2 py-1">{new Date(r.clicked_at).toLocaleString()}</td>
+                      <td className="px-2 py-1">{formatDateTime(r.clicked_at)}</td>
                       <td className="px-2 py-1">{parseUserAgent(r.user_agent)}</td>
                       <td className="px-2 py-1">{extractDestination(r.url)}</td>
                       <td className="px-2 py-1"><a href={r.url} className="text-blue-600" target="_blank" rel="noreferrer">{r.url}</a></td>
@@ -207,7 +269,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
                     <tr><td colSpan={4} className="py-4">No results</td></tr>
                   ) : rows.map((r: any) => (
                     <tr key={`${r.link_id}-${r.month}`}>
-                      <td className="px-2 py-1">{new Date(r.month).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}</td>
+                      <td className="px-2 py-1">{formatMonthShort(r.month)}</td>
                       <td className="px-2 py-1">{r.title}</td>
                       <td className="px-2 py-1"><a href={r.url} className="text-blue-600" target="_blank" rel="noreferrer">{r.url}</a></td>
                       <td className="px-2 py-1">{r.clicks}</td>

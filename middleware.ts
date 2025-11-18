@@ -35,8 +35,14 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    // Lazy-load the Supabase SSR client to avoid module-evaluation errors
-    // during middleware initialization on the Edge runtime.
+    // Optimization: only perform Supabase auth/cookie handling for dashboard
+    // routes. Importing `@supabase/ssr` on every request adds latency for
+    // public pages — we should avoid that. The dashboard needs the server
+    // session to enforce login, so run the heavy import only for those paths.
+    if (!request.nextUrl.pathname.startsWith("/dashboard")) {
+      return NextResponse.next()
+    }
+
     let createServerClient: any
     try {
       // dynamic import so build-time or environment issues don't crash middleware
