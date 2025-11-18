@@ -27,6 +27,7 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
     title: link?.title || "",
     url: link?.url || "",
     icon: link?.icon || "fas fa-link",
+    embed_slug: link?.embed_slug || "",
     background_color_light: link?.background_color_light || "#ffffff",
     background_color_dark: link?.background_color_dark || "#1f2937",
     background_image: link?.background_image || null,
@@ -129,6 +130,16 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
     setIsLoading(true)
     setError("")
 
+    // Validate embed slug if provided: allow lowercase letters, numbers, hyphen and underscore
+    if (formData.embed_slug) {
+      const slug = String(formData.embed_slug)
+      if (!/^[a-z0-9_-]{1,64}$/.test(slug)) {
+        setError('Embed slug may only contain lowercase letters, numbers, hyphen and underscore (max 64 chars)')
+        setIsLoading(false)
+        return
+      }
+    }
+
     try {
       // If this is a location link, synthesize a Google Maps directions URL
       if (formData.category === "location") {
@@ -202,13 +213,15 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
           // Handle case where the DB schema may not include the new location
           // columns (lat/lng/place_id). Retry without those fields if the
           // PostgREST/schema cache complains about missing columns.
+          // If DB schema doesn't include expected columns (lat/place_id/embed_slug), retry without them
           const msg = error.message || ""
-          if (msg.includes("Could not find the 'lat' column") || msg.includes("Could not find the 'place_id' column") || msg.includes("schema cache")) {
+          if (msg.includes("Could not find the 'lat' column") || msg.includes("Could not find the 'place_id' column") || msg.includes("schema cache") || msg.includes("Could not find the 'embed_slug' column")) {
             try {
               const retryPayload = { ...payload }
               delete retryPayload.lat
               delete retryPayload.lng
               delete retryPayload.place_id
+              delete retryPayload.embed_slug
               const { data: rdata, error: rerr } = await supabase.from("links").update(retryPayload).eq("id", link.id).select().single()
               if (rerr) {
                 setError("Error updating link (retry): " + rerr.message)
@@ -291,12 +304,13 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
           .single()
         if (error) {
           const msg = error.message || ""
-          if (msg.includes("Could not find the 'lat' column") || msg.includes("Could not find the 'place_id' column") || msg.includes("schema cache")) {
+          if (msg.includes("Could not find the 'lat' column") || msg.includes("Could not find the 'place_id' column") || msg.includes("schema cache") || msg.includes("Could not find the 'embed_slug' column")) {
             try {
               const retryPayload = { ...payload }
               delete retryPayload.lat
               delete retryPayload.lng
               delete retryPayload.place_id
+              delete retryPayload.embed_slug
               const { data: rdata, error: rerr } = await supabase.from("links").insert(retryPayload).select().single()
               if (rerr) {
                 setError("Error creating link (retry): " + rerr.message)
@@ -391,6 +405,24 @@ export function LinkForm({ profileId, link, onSuccess, onCancel }: LinkFormProps
                 required
               />
             </div>
+          </div>
+
+          <div className="mt-3">
+            <Label htmlFor="embed_slug">Embedded Slug (optional)</Label>
+            <Input
+              id="embed_slug"
+              value={formData.embed_slug}
+              onChange={(e) => setFormData({ ...formData, embed_slug: e.target.value })}
+              placeholder="e.g. website or contact-us"
+            />
+            <p className="text-sm text-muted-foreground mt-1">
+              Optional short identifier used with ?source=&lt;slug&gt; to redirect directly to this link. Allowed: lowercase letters, numbers, hyphen, underscore.
+            </p>
+            {typeof window !== 'undefined' && formData.embed_slug && (
+              <div className="text-sm mt-2">
+                Preview: <code>{`${window.location.origin}?source=${encodeURIComponent(String(formData.embed_slug))}`}</code>
+              </div>
+            )}
           </div>
 
           <div>

@@ -1,7 +1,9 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import dynamic from 'next/dynamic'
+const QRModal = dynamic(() => import('@/components/ui/qr-modal'), { ssr: false })
 import { Badge } from "@/components/ui/badge"
 import type { Link } from "@/types"
 import { usePathname } from "next/navigation"
@@ -139,6 +141,33 @@ export function LinksList({ profileId, links, editingLink, onEdit, onDelete, onT
                 <Badge variant="outline">{link.category}</Badge>
               </div>
               <p className="text-sm text-muted-foreground truncate">{link.url}</p>
+              {link.embed_slug && typeof window !== 'undefined' && (
+                <div className="text-sm mt-1 flex flex-col md:flex-row items-start md:items-center gap-2">
+                  <code className="truncate">{`${window.location.origin}?source=${encodeURIComponent(String(link.embed_slug))}`}</code>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={() => {
+                      try {
+                        navigator.clipboard.writeText(`${window.location.origin}?source=${encodeURIComponent(String(link.embed_slug))}`)
+                        // prefer toast if available
+                        if (typeof (window as any).toast?.success === 'function') (window as any).toast.success('Embed URL copied')
+                        else alert('Embed URL copied')
+                      } catch (e) {
+                        alert('Copy failed')
+                      }
+                    }}>
+                      <i className="fas fa-copy mr-1" /> Copy
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => {
+                      const url = `${window.location.origin}?source=${encodeURIComponent(String(link.embed_slug))}`
+                      // dispatch an event to open the QR modal
+                      (window as any).__qr_payload = url
+                      window.dispatchEvent(new CustomEvent('biolink:open-qr'))
+                    }}>
+                      <i className="fas fa-qrcode mr-1" /> QR
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2 mt-1">
                 <div
                   className="w-4 h-4 rounded border"
@@ -207,4 +236,22 @@ export function LinksList({ profileId, links, editingLink, onEdit, onDelete, onT
       ))}
     </div>
   )
+}
+
+function QRModalHost() {
+  const [open, setOpen] = useState(false)
+  const [url, setUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    const handler = () => {
+      const payload = (window as any).__qr_payload || null
+      setUrl(payload)
+      setOpen(!!payload)
+    }
+    window.addEventListener('biolink:open-qr', handler as EventListener)
+    return () => window.removeEventListener('biolink:open-qr', handler as EventListener)
+  }, [])
+
+  if (!open || !url) return null
+  return <QRModal url={url} onClose={() => { setOpen(false); (window as any).__qr_payload = null }} />
 }

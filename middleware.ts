@@ -9,6 +9,32 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next()
     }
 
+    // Quick path: if a `source` query param is present on any non-API request,
+    // attempt to resolve an embed redirect server-side. We forward to the
+    // server route which will perform the admin lookup and logging, then
+    // return its redirect location (if any) so the middleware can redirect
+    // without rendering the main page. This keeps the lookup privileged and
+    // avoids duplicating admin logic in middleware.
+    if (request.nextUrl.searchParams.has('source')) {
+      try {
+        const slug = request.nextUrl.searchParams.get('source') || ''
+        const apiUrl = new URL('/api/embed/redirect', request.url)
+        apiUrl.searchParams.set('source', slug)
+
+        // Use a manual redirect so we can inspect the response headers.
+        const resp = await fetch(apiUrl.toString(), { method: 'GET', redirect: 'manual' })
+        if (resp.status >= 300 && resp.status < 400) {
+          const loc = resp.headers.get('location')
+          if (loc) return NextResponse.redirect(loc)
+        }
+        // If there's no redirect result, continue normal processing so the
+        // app can render normally (no-op for unknown slugs).
+      } catch (e) {
+        console.error('Embed redirect lookup failed in middleware:', e)
+        // swallow and continue
+      }
+    }
+
     // Lazy-load the Supabase SSR client to avoid module-evaluation errors
     // during middleware initialization on the Edge runtime.
     let createServerClient: any

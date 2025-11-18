@@ -25,6 +25,8 @@ export interface Link {
   profile_id?: string
   title: string
   url: string
+  /** Optional embed slug used for redirecting via ?source=<slug> */
+  embed_slug?: string | null
   place_id?: string | null
   lat?: string | number | null
   lng?: string | number | null
