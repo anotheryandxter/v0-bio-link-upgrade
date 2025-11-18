@@ -166,7 +166,7 @@ BEGIN
 
     BEGIN
       -- schedule the refresh (cron.schedule is provided by pg_cron)
-      PERFORM cron.schedule('refresh_monthly_link_stats', '5 0 * * *', $$SELECT public.refresh_monthly_link_stats();$$);
+      PERFORM cron.schedule('refresh_monthly_link_stats', '5 0 * * *', $cmd$SELECT public.refresh_monthly_link_stats();$cmd$);
     EXCEPTION WHEN others THEN
       RAISE NOTICE 'pg_cron scheduling failed: %', SQLERRM;
     END;

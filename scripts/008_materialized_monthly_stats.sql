@@ -60,7 +60,7 @@ BEGIN
     END;
 
     -- schedule to run daily at 00:05
-    PERFORM cron.schedule('refresh_monthly_link_stats', '5 0 * * *', $$SELECT public.refresh_monthly_link_stats();$$);
+    PERFORM cron.schedule('refresh_monthly_link_stats', '5 0 * * *', $cmd$SELECT public.refresh_monthly_link_stats();$cmd$);
   ELSE
     RAISE NOTICE 'pg_cron not available - please schedule refresh_monthly_link_stats() externally';
   END IF;
