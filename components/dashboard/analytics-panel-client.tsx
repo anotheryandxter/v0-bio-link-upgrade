@@ -1,9 +1,19 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { formatDateTime, formatMonthShort } from '@/lib/timezone'
-import MonthlyStatsClient from './monthly-stats-client'
-import UAParser from 'ua-parser-js'
+// Dynamically import chart component to reduce initial bundle size
+const MonthlyStatsClient = dynamic(() => import('./monthly-stats-client'), { ssr: false, loading: () => <div>Loading chart…</div> })
+// Lazy-load UA parser (only needed when viewing detailed logs)
+let UAParser: any = null
+const loadUAParser = async () => {
+  if (!UAParser) {
+    const module = await import('ua-parser-js')
+    UAParser = module.default
+  }
+  return UAParser
+}
 
 export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, profileId }: { links: any[], defaultStart: string, defaultEnd: string, profileId: string }) {
   const [start, setStart] = useState<string>(defaultStart)
@@ -24,6 +34,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
   function parseUserAgent(ua?: string) {
     if (!ua) return 'Unknown'
     try {
+      if (!UAParser) return ua.substring(0, 50)
       const p = new UAParser(ua)
       const r = p.getResult()
       const browser = r.browser.name ? `${r.browser.name}${r.browser.version ? ' ' + r.browser.version : ''}` : ''
@@ -35,6 +46,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
   }
 
   const [monthlyAgg, setMonthlyAgg] = useState<any[]>([])
+  const [granularity, setGranularity] = useState<'month' | 'week' | 'day'>('month')
   const [refreshLoading, setRefreshLoading] = useState(false)
   const [refreshCounter, setRefreshCounter] = useState(0)
 
@@ -106,6 +118,8 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
     let mounted = true
     async function fetchRows() {
       setLoading(true)
+      // Preload UAParser if we're viewing detailed logs
+      if (linkId) loadUAParser().catch(e => console.error('Failed to load UAParser', e))
       try {
         const offset = (page - 1) * perPage
   const params = new URLSearchParams({ start, end, limit: String(perPage), offset: String(offset) })
@@ -123,6 +137,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
         try {
           const mparams = new URLSearchParams({ start, end, limit: String(1000) })
           if (profileId) mparams.set('profileId', profileId)
+          if (granularity) mparams.set('granularity', granularity)
           const mres = await fetch(`/api/analytics/monthly?${mparams.toString()}`)
           const mjson = await mres.json()
           if (mounted) setMonthlyAgg(mjson.data || [])
@@ -137,24 +152,24 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
     }
     fetchRows()
     return () => { mounted = false }
-  }, [start, end, linkId, search, page, perPage, refreshCounter])
+  }, [start, end, linkId, search, page, perPage, refreshCounter, granularity])
 
   const totalPages = Math.max(1, Math.ceil((total || 0) / perPage))
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         <div>
-          <label className="text-sm block">Start</label>
-          <input type="date" value={start} onChange={e => setStart(e.target.value)} className="border rounded px-2 py-1" />
+          <label className="text-sm block mb-1 font-medium">Start</label>
+          <input type="date" value={start} onChange={e => setStart(e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm" />
         </div>
         <div>
-          <label className="text-sm block">End</label>
-          <input type="date" value={end} onChange={e => setEnd(e.target.value)} className="border rounded px-2 py-1" />
+          <label className="text-sm block mb-1 font-medium">End</label>
+          <input type="date" value={end} onChange={e => setEnd(e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm" />
         </div>
         <div>
-          <label className="text-sm block">Link</label>
-          <select value={linkId || ''} onChange={e => setLinkId(e.target.value || null)} className="border rounded px-2 py-1">
+          <label className="text-sm block mb-1 font-medium">Link</label>
+          <select value={linkId || ''} onChange={e => setLinkId(e.target.value || null)} className="w-full border rounded px-2 py-1.5 text-sm">
             <option value="">All</option>
             {/** Show only links with click data when available, include counts */}
             {linkOptions.map((opt) => (
@@ -163,24 +178,32 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
           </select>
         </div>
         <div>
-          <label className="text-sm block">Search</label>
-          <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="title or url" className="border rounded px-2 py-1" />
+          <label className="text-sm block mb-1 font-medium">Granularity</label>
+          <select value={granularity} onChange={e => setGranularity(e.target.value as any)} className="w-full border rounded px-2 py-1.5 text-sm">
+            <option value="month">Month</option>
+            <option value="week">Week</option>
+            <option value="day">Day</option>
+          </select>
         </div>
         <div>
-          <label className="text-sm block">Per page</label>
-          <select value={perPage} onChange={e => setPerPage(parseInt(e.target.value, 10))} className="border rounded px-2 py-1">
+          <label className="text-sm block mb-1 font-medium">Search</label>
+          <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="title or url" className="w-full border rounded px-2 py-1.5 text-sm" />
+        </div>
+        <div>
+          <label className="text-sm block mb-1 font-medium">Per page</label>
+          <select value={perPage} onChange={e => setPerPage(parseInt(e.target.value, 10))} className="w-full border rounded px-2 py-1.5 text-sm">
             {[5,10,20,50].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="w-full">
-          <MonthlyStatsClient start={start} end={end} profileId={profileId} linkId={linkId} chartType={linkId ? 'line' : 'bar'} />
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <MonthlyStatsClient start={start} end={end} profileId={profileId} linkId={linkId} chartType={linkId ? 'line' : 'bar'} granularity={granularity} />
         </div>
-            <div className="ml-4">
-          <label className="text-sm block">Export</label>
-          <div className="flex flex-col">
+            <div className="flex-shrink-0">
+          <label className="text-sm block mb-2 font-medium">Actions</label>
+          <div className="flex flex-row lg:flex-col gap-2">
             <button onClick={() => {
               try {
                 const params = new URLSearchParams()
@@ -188,6 +211,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
                 if (end) params.set('end', end)
                 if (linkId) params.set('linkId', linkId)
                 if (profileId) params.set('profileId', profileId)
+                if (granularity) params.set('granularity', granularity)
                 // export only stats for active links
                 params.set('activeOnly', 'true')
                 params.set('format', 'csv')
@@ -196,7 +220,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
               } catch (e) {
                 console.error('Failed to start export', e)
               }
-            }} className="px-3 py-1 border rounded bg-white">CSV (active links)</button>
+            }} className="px-3 py-1.5 border rounded bg-white hover:bg-gray-50 text-sm whitespace-nowrap">CSV Export</button>
                 <button
                   onClick={async () => {
                     try {
@@ -212,7 +236,7 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
                       setRefreshLoading(false)
                     }
                   }}
-                  className="mt-2 px-3 py-1 border rounded bg-white"
+                  className="px-3 py-1.5 border rounded bg-white hover:bg-gray-50 text-sm whitespace-nowrap"
                   disabled={refreshLoading}
                 >{refreshLoading ? 'Refreshing…' : 'Refresh DB'}</button>
           </div>
@@ -220,34 +244,34 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
       </div>
 
       <div>
-        <div className="text-sm text-muted-foreground">Showing {(page-1)*perPage+1} - {Math.min(page*perPage, total)} of {total}</div>
-        <div className="overflow-x-auto mt-2">
+        <div className="text-sm text-muted-foreground mb-2">Showing {(page-1)*perPage+1} - {Math.min(page*perPage, total)} of {total}</div>
+        <div className="overflow-x-auto mt-2 -mx-4 sm:mx-0">
             {/** If a specific link is selected, show detailed raw logs (timestamp, UA, IP). Otherwise show monthly aggregates (as before). */}
             {linkId ? (
-              <table className="w-full table-auto">
+              <table className="w-full table-auto min-w-[640px]">
                 <thead>
-                        <tr className="text-left">
-                          <th className="px-2 py-1">Timestamp</th>
-                          <th className="px-2 py-1">Browser</th>
-                          <th className="px-2 py-1">Destination</th>
-                          <th className="px-2 py-1">URL</th>
-                          <th className="px-2 py-1">User Agent</th>
-                          <th className="px-2 py-1">IP</th>
+                        <tr className="text-left bg-gray-50">
+                          <th className="px-3 py-2 text-xs font-semibold">Timestamp</th>
+                          <th className="px-3 py-2 text-xs font-semibold">Browser</th>
+                          <th className="px-3 py-2 text-xs font-semibold">Destination</th>
+                          <th className="px-3 py-2 text-xs font-semibold">URL</th>
+                          <th className="px-3 py-2 text-xs font-semibold hidden md:table-cell">User Agent</th>
+                          <th className="px-3 py-2 text-xs font-semibold hidden lg:table-cell">IP</th>
                         </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={6} className="py-4">Loading...</td></tr>
+                    <tr><td colSpan={6} className="py-4 text-center text-sm">Loading...</td></tr>
                   ) : rows.length === 0 ? (
-                    <tr><td colSpan={6} className="py-4">No results</td></tr>
+                    <tr><td colSpan={6} className="py-4 text-center text-sm">No results</td></tr>
                   ) : rows.map((r: any, idx: number) => (
-                    <tr key={`${r.id || idx}-${r.clicked_at}`}>
-                      <td className="px-2 py-1">{formatDateTime(r.clicked_at)}</td>
-                      <td className="px-2 py-1">{parseUserAgent(r.user_agent)}</td>
-                      <td className="px-2 py-1">{extractDestination(r.url)}</td>
-                      <td className="px-2 py-1"><a href={r.url} className="text-blue-600" target="_blank" rel="noreferrer">{r.url}</a></td>
-                      <td className="px-2 py-1">{r.user_agent || '—'}</td>
-                      <td className="px-2 py-1">{r.ip_address || '—'}</td>
+                    <tr key={`${r.id || idx}-${r.clicked_at}`} className="border-b hover:bg-gray-50">
+                      <td className="px-3 py-2 text-xs">{formatDateTime(r.clicked_at)}</td>
+                      <td className="px-3 py-2 text-xs">{parseUserAgent(r.user_agent)}</td>
+                      <td className="px-3 py-2 text-xs">{extractDestination(r.url)}</td>
+                      <td className="px-3 py-2 text-xs"><a href={r.url} className="text-blue-600 hover:underline" target="_blank" rel="noreferrer">{r.url}</a></td>
+                      <td className="px-3 py-2 text-xs hidden md:table-cell">{r.user_agent || '—'}</td>
+                      <td className="px-3 py-2 text-xs hidden lg:table-cell">{r.ip_address || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -255,24 +279,24 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
             ) : (
               <table className="w-full table-auto">
                 <thead>
-                  <tr className="text-left">
-                    <th className="px-2 py-1">Month</th>
-                    <th className="px-2 py-1">Link</th>
-                    <th className="px-2 py-1">URL</th>
-                    <th className="px-2 py-1">Clicks</th>
+                  <tr className="text-left bg-gray-50">
+                    <th className="px-3 py-2 text-xs font-semibold">Month</th>
+                    <th className="px-3 py-2 text-xs font-semibold">Link</th>
+                    <th className="px-3 py-2 text-xs font-semibold">URL</th>
+                    <th className="px-3 py-2 text-xs font-semibold">Clicks</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={4} className="py-4">Loading...</td></tr>
+                    <tr><td colSpan={4} className="py-4 text-center text-sm">Loading...</td></tr>
                   ) : rows.length === 0 ? (
-                    <tr><td colSpan={4} className="py-4">No results</td></tr>
+                    <tr><td colSpan={4} className="py-4 text-center text-sm">No results</td></tr>
                   ) : rows.map((r: any) => (
-                    <tr key={`${r.link_id}-${r.month}`}>
-                      <td className="px-2 py-1">{formatMonthShort(r.month)}</td>
-                      <td className="px-2 py-1">{r.title}</td>
-                      <td className="px-2 py-1"><a href={r.url} className="text-blue-600" target="_blank" rel="noreferrer">{r.url}</a></td>
-                      <td className="px-2 py-1">{r.clicks}</td>
+                    <tr key={`${r.link_id}-${r.month}`} className="border-b hover:bg-gray-50">
+                      <td className="px-3 py-2 text-xs">{formatMonthShort(r.month)}</td>
+                      <td className="px-3 py-2 text-xs">{r.title}</td>
+                      <td className="px-3 py-2 text-xs"><a href={r.url} className="text-blue-600 hover:underline" target="_blank" rel="noreferrer">{r.url}</a></td>
+                      <td className="px-3 py-2 text-xs">{r.clicks}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -280,12 +304,12 @@ export default function AnalyticsPanelClient({ links, defaultStart, defaultEnd, 
             )}
         </div>
 
-        <div className="flex items-center justify-between mt-3">
-          <div>
-            <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page<=1} className="px-3 py-1 border rounded mr-2">Prev</button>
-            <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page>=totalPages} className="px-3 py-1 border rounded">Next</button>
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-3">
+          <div className="flex gap-2">
+            <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page<=1} className="px-4 py-2 border rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Prev</button>
+            <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page>=totalPages} className="px-4 py-2 border rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
           </div>
-          <div className="text-sm">Page {page} of {totalPages}</div>
+          <div className="text-sm text-muted-foreground">Page {page} of {totalPages}</div>
         </div>
       </div>
     </div>

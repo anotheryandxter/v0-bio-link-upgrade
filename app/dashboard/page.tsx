@@ -33,9 +33,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Profile Settings</h1>
-        <p className="text-muted-foreground">Manage your bio-link profile information</p>
+      <div className="px-2 sm:px-0">
+        <h1 className="text-2xl sm:text-3xl font-bold">Profile Settings</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">Manage your bio-link profile information</p>
       </div>
 
       <Card>

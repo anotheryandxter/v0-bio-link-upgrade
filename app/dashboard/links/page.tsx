@@ -21,9 +21,9 @@ export default async function LinksPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Link Management</h1>
-        <p className="text-muted-foreground">Manage your bio-link buttons and their appearance</p>
+      <div className="px-2 sm:px-0">
+        <h1 className="text-2xl sm:text-3xl font-bold">Link Management</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">Manage your bio-link buttons and their appearance</p>
       </div>
 
       <Card>

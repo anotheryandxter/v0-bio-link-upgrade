@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { ResponsiveContainer, XAxis, YAxis, Tooltip, LineChart, Line, CartesianGrid, BarChart, Bar } from 'recharts'
 import { formatMonthShort, formatMonthDay, formatDateTime } from '@/lib/timezone'
 
-export default function MonthlyStatsClient({ start, end, profileId, linkId, chartType }: { start?: string, end?: string, profileId?: string, linkId?: string | null, chartType?: 'line' | 'bar' }) {
+export default function MonthlyStatsClient({ start, end, profileId, linkId, chartType, granularity }: { start?: string, end?: string, profileId?: string, linkId?: string | null, chartType?: 'line' | 'bar', granularity?: 'month' | 'week' | 'day' }) {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -18,19 +18,14 @@ export default function MonthlyStatsClient({ start, end, profileId, linkId, char
         if (end) params.set('end', end)
         if (profileId) params.set('profileId', profileId)
 
-        if (linkId) {
-          // Fetch day-by-day counts for the selected link
-          params.set('linkId', linkId)
-          const res = await fetch(`/api/analytics/daily?${params.toString()}`)
-          const json = await res.json()
-          // expected shape: [{ day: '2025-11-01', visits: 3 }, ...]
-          if (mounted) setData(json.data || [])
-        } else {
-          // Fallback: monthly aggregates (existing endpoint)
-          const res = await fetch(`/api/analytics/monthly?${params.toString()}`)
-          const json = await res.json()
-          if (mounted) setData((json.data || []).map((r: any) => ({ name: `${r.title} (${formatMonthShort(r.month)})`, clicks: r.clicks, month: r.month })))
-        }
+        if (linkId) params.set('linkId', linkId)
+        if (granularity) params.set('granularity', granularity)
+        // Use the monthly endpoint as a single flexible endpoint that
+        // supports day/week/month granularity. Back-end will return
+        // rows shaped accordingly (e.g. { day, visits } or { month, clicks }).
+        const res = await fetch(`/api/analytics/monthly?${params.toString()}`)
+        const json = await res.json()
+        if (mounted) setData(json.data || [])
       } catch (e) {
         console.error(e)
       } finally {
@@ -39,7 +34,7 @@ export default function MonthlyStatsClient({ start, end, profileId, linkId, char
     }
     fetchData()
     return () => { mounted = false }
-  }, [start, end, profileId, linkId])
+  }, [start, end, profileId, linkId, granularity])
 
   if (loading) return <div>Loading chart...</div>
   if (!data || data.length === 0) return <div>No stats available yet.</div>
