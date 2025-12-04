@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
