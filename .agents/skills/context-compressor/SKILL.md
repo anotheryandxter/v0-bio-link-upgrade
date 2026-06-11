@@ -1,5 +1,5 @@
 ---
-name: Context Compressor
+name: context-compressor
 description: Strategies for compressing context to maximize token efficiency
 ---
 
