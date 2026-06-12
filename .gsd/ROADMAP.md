@@ -21,5 +21,14 @@
 2. SPEC.md is FINALIZED with clear requirements.
 3. STACK.md documents all technologies in use.
 
+### Phase 2: Security Hardening
+**Status**: ✅ Complete
+**Goal**: Harden the application against XSS, debugging/reverse-engineering, and backend vulnerabilities.
+**Success Criteria**:
+1. Inline unsafe scripts removed or isolated.
+2. Developer tools shortcuts (F12) explicitly blocked.
+3. Redirect route strictly validates HTTP/HTTPS protocols.
+4. RLS migration prepared for database.
+
 ---
 *Last updated: 2026-06-11 — GSD installed*
