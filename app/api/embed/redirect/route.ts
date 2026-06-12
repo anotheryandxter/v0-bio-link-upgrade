@@ -80,6 +80,18 @@ export async function GET(request: NextRequest) {
       console.error("Embed click logging failed:", e)
     }
 
+    // Strictly validate the URL protocol to prevent open redirect vulnerabilities
+    try {
+      const parsedUrl = new URL(link.url)
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        console.error("Invalid URL protocol for redirect:", link.url)
+        return new Response("Bad Request: Invalid URL protocol", { status: 400 })
+      }
+    } catch (err) {
+      console.error("Invalid URL format for redirect:", link.url)
+      return new Response("Bad Request: Invalid URL", { status: 400 })
+    }
+
     // Redirect to the configured URL
     return NextResponse.redirect(link.url, 307)
   } catch (e) {
