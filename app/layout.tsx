@@ -37,7 +37,7 @@ export default function RootLayout({
     {/* Critical, minimal inline CSS for the preloader to ensure it's styled
         immediately and can paint before external CSS is downloaded. This
         helps First Contentful Paint for the initial experience. */}
-    <style dangerouslySetInnerHTML={{__html: `
+    <style>{`
       /* Minimalist fullscreen preloader (client) */
       .preloader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#333333;z-index:99999}
       .preloader-inner{width:min(640px,84vw);padding:18px 20px;border-radius:12px;background:rgba(255,255,255,0.03);box-shadow:0 6px 18px rgba(0,0,0,0.45);display:flex;flex-direction:column;gap:12px}
@@ -62,7 +62,7 @@ export default function RootLayout({
     @keyframes server-preload-grow { from { width: 3%; } to { width: 90%; } }
     .server-progress-bar{ animation: server-preload-grow 4s linear forwards }
     @media (prefers-reduced-motion: reduce) { .server-progress-bar{ animation: none !important } }
-    `}} />
+    `}</style>
 
     {/* server preloader behavior will be emitted only on the main page (Home).
         The head keeps only the server-side CSS rules for the bar so it can
@@ -158,11 +158,22 @@ export default function RootLayout({
                     document.addEventListener(ev, function(e){ e.preventDefault(); }, { passive: false });
                   });
 
-                  // Block some common keyboard shortcuts (Ctrl/Cmd + C/S/U/P etc.)
+                  // Block some common keyboard shortcuts (Ctrl/Cmd + C/S/U/P/I/J) and F12
                   document.addEventListener('keydown', function(e){
                     var k = (e.key || '').toLowerCase();
-                    if ((e.ctrlKey || e.metaKey) && ['c','s','u','p','a','x'].indexOf(k) !== -1) {
+                    var code = e.keyCode || e.which;
+                    // F12
+                    if (code === 123 || k === 'f12') {
                       e.preventDefault();
+                      return;
+                    }
+                    if ((e.ctrlKey || e.metaKey) && ['c','s','u','p','a','x','i','j'].indexOf(k) !== -1) {
+                      e.preventDefault();
+                      return;
+                    }
+                    if (e.ctrlKey && e.shiftKey && ['c','i','j'].indexOf(k) !== -1) {
+                      e.preventDefault();
+                      return;
                     }
                   }, { passive: false });
 
