@@ -5,6 +5,7 @@ import { BioPage } from "@/components/bio/bio-page"
 import { redirect } from "next/navigation"
 import type { Metadata } from "next"
 import { Suspense } from 'react'
+import { PreloaderScript } from '@/components/bio/PreloaderScript'
 
 export const dynamic = "force-dynamic"
 
@@ -40,37 +41,7 @@ function ServerPreloader() {
           </div>
         </div>
       </div>
-      <script dangerouslySetInnerHTML={{__html: `
-        (function(){
-          try {
-            var el = document.getElementById('server-preloader');
-            var bar = document.getElementById('server-preloader-bar');
-            var pct = document.getElementById('server-preloader-percent');
-            if (!el || !bar || !pct) return;
-            var value = 3;
-            bar.style.width = value + '%';
-            pct.textContent = Math.round(value) + '%';
-            var iv = setInterval(function(){
-              value = Math.min(90, value + Math.random()*6 + 1);
-              bar.style.width = Math.round(value) + '%';
-              pct.textContent = Math.round(value) + '%';
-              if (value >= 90) clearInterval(iv);
-            }, 300);
-            function finish(){
-              clearInterval(iv);
-              bar.style.width = '100%';
-              pct.textContent = '100%';
-              el.classList.add('hidden');
-              setTimeout(function(){ try{ el.remove(); }catch(e){} }, 320);
-            }
-            if (window.__APP_READY__) { finish(); return; }
-            window.addEventListener('app-ready', finish, {once:true});
-            document.addEventListener('DOMContentLoaded', finish, {once:true});
-            window.addEventListener('load', finish, {once:true});
-            setTimeout(finish, 15000);
-          } catch (e) { /* noop */ }
-        })();
-      `}} />
+      <PreloaderScript />
     </>
   )
 }
